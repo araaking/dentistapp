@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../diagnosis/provider/diagnosis_provider.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -103,6 +105,9 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () {
+              // Reset diagnosis state sebelum memulai diagnosis baru
+              final provider = context.read<DiagnosisProvider>();
+              provider.resetDiagnosis();
               Navigator.of(context).pushNamed('/diagnosis');
             },
             style: ElevatedButton.styleFrom(

@@ -9,14 +9,28 @@ class QuestionRepository {
 
   /// Mengambil semua pertanyaan untuk form diagnosis.
   Future<AllQuestionsModel> getQuestions() async {
-    print('=== DEBUG: QuestionRepository.getQuestions() called ===');
+    print('=== DEBUG: Getting questions from API ===');
     try {
       final response = await _questionApiProvider.getQuestions();
       
-      // Debug logging untuk melihat response lengkap
-      print('API Response status: ${response.statusCode}');
-      print('API Response data type: ${response.data.runtimeType}');
-      print('API Response data: ${response.data}');
+      print('=== DEBUG: API Response ===');
+      print('Status: ${response.statusCode}');
+      print('Data type: ${response.data.runtimeType}');
+      print('Full response: ${response.data}');
+      
+      // Debug khusus untuk data audio di E3
+      if (response.data is Map && response.data.containsKey('eq')) {
+        final eqData = response.data['eq'];
+        if (eqData is List) {
+          for (var eq in eqData) {
+            if (eq is Map && eq['code'] == 'E3') {
+              print('=== DEBUG: E3 Question Data ===');
+              print('E3 input: ${eq['input']}');
+              print('E3 options: ${eq['input']?['options']}');
+            }
+          }
+        }
+      }
       
       dynamic responseData = response.data;
 
@@ -66,8 +80,10 @@ class QuestionRepository {
       final errorMessage = e.response?.data?['message'] ?? 
                           e.response?.data?.toString() ?? 
                           e.message;
+      print('=== DEBUG: DioException in getQuestions: $e ===');
       throw Exception('Failed to load questions: $errorMessage');
     } catch (e) {
+      print('=== DEBUG: Unexpected error in getQuestions: $e ===');
       throw Exception('An unexpected error occurred: $e');
     }
   }

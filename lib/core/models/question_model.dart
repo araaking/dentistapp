@@ -35,44 +35,21 @@ class QuestionModel {
 
   factory QuestionModel.fromJson(Map<String, dynamic> json) {
     try {
+      print('=== DEBUG: Parsing question JSON ===');
+      print('JSON: $json');
+      
       // Handle different option formats with null safety
       dynamic optionsData = json['input']?['options'];
-      List<String>? options;
+      print('=== DEBUG: Options data: $optionsData ===');
       
-      if (optionsData is List) {
-        if (optionsData.isNotEmpty && optionsData.first is Map) {
-          // Handle format: [{value: "...", label: "..."}]
-          options = optionsData.map<String>((item) {
-            if (item is Map) {
-              return item['value']?.toString() ?? item['label']?.toString() ?? '';
-            }
-            return item.toString();
-          }).toList();
-        } else {
-          // Handle format: ["...", "..."]
-          options = optionsData.map<String>((item) => item.toString()).toList();
-        }
-      }
-      
-      // Handle input data with comprehensive error handling
+      // Handle input data dengan mempertahankan struktur asli options
       final inputData = json['input'];
       InputModel inputModel;
       
       if (inputData is Map<String, dynamic>) {
         try {
           inputModel = InputModel.fromJson(inputData);
-          // Override options if we processed them above
-          if (options != null) {
-            inputModel = InputModel(
-              type: inputModel.type,
-              options: options,
-              defaultValue: inputModel.defaultValue,
-              areas: inputModel.areas,
-              min: inputModel.min,
-              max: inputModel.max,
-              labels: inputModel.labels,
-            );
-          }
+          // JANGAN override options, biarkan struktur asli tetap utuh
         } catch (e) {
           // Fallback if InputModel parsing fails
           print('Error parsing input data: $e');
@@ -89,7 +66,7 @@ class QuestionModel {
       );
     } catch (e) {
       // Comprehensive error handling for entire parsing process
-      print('Error parsing question: $e');
+      print('=== DEBUG: Error parsing question: $e ===');
       print('Problematic question data: $json');
       return QuestionModel(
         code: 'error',

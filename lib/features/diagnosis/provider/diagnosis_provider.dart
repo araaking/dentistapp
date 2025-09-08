@@ -144,6 +144,17 @@ class DiagnosisProvider extends ChangeNotifier {
     }
   }
 
+  void resetDiagnosis() {
+    _state = DiagnosisState.initial;
+    _stage = DiagnosisStage.sq;
+    _currentIndex = 0;
+    _answers.clear();
+    _sqQuestions.clear();
+    _eqQuestions.clear();
+    _errorMessage = '';
+    notifyListeners();
+  }
+
   Future<void> _submitConsultation() async {
     try {
       // Extract E2 photo file jika ada
