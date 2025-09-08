@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/models/question_model.dart';
-import '../../../../core/theme/app_colors.dart';
 import '../../provider/diagnosis_provider.dart';
 
 class EqMeasurementWidget extends StatelessWidget {
@@ -12,7 +11,8 @@ class EqMeasurementWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DiagnosisProvider>();
-    final photoAnswer = provider.answers['E2_photo'] as File?;
+    final currentAnswers = (provider.answers['E2'] as Map<String, dynamic>?) ?? {};
+    final photoAnswer = currentAnswers['photo'] as File?;
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -29,8 +29,10 @@ class EqMeasurementWidget extends StatelessWidget {
             suffixText: 'mm',
           ),
           onChanged: (value) {
-            // Store the text value
-            provider.answerQuestion('E2_opening', value);
+            // Store the text value dengan struktur yang benar
+            final newAnswers = Map<String, dynamic>.from(currentAnswers);
+            newAnswers['opening_mm'] = value;
+            provider.answerQuestion('E2', newAnswers);  // ← GUNAKAN 'E2', BUKAN 'E2_opening'
           },
         ),
         const SizedBox(height: 24),

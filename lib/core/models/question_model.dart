@@ -121,6 +121,25 @@ class InputModel {
   });
 
   factory InputModel.fromJson(Map<String, dynamic> json) {
+    print('=== DEBUG: InputModel.fromJson: $json ===');
+    
+    // Handle labels conversion - PHP associative array becomes List in JSON
+    Map<String, String>? labels;
+    final labelsData = json['labels'];
+    if (labelsData is List) {
+      // Convert List to Map (for PHP associative array compatibility)
+      labels = {};
+      for (var item in labelsData) {
+        if (item is Map) {
+          item.forEach((key, value) {
+            labels![key.toString()] = value.toString();
+          });
+        }
+      }
+    } else if (labelsData is Map) {
+      labels = Map<String, String>.from(labelsData);
+    }
+    
     return InputModel(
       type: json['type'],
       options: json['options'],
@@ -128,9 +147,7 @@ class InputModel {
       areas: json['areas'] != null ? List<String>.from(json['areas']) : null,
       min: json['min'],
       max: json['max'],
-      labels: json['labels'] != null
-          ? Map<String, String>.from(json['labels'])
-          : null,
+      labels: labels, // Use the converted labels
     );
   }
 }

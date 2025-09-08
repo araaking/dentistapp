@@ -56,7 +56,7 @@ class _EqAudioOptionWidgetState extends State<EqAudioOptionWidget> {
     return Column(
       children: (widget.question.input.options ?? []).map((optionData) {
         if (optionData is! Map) return const SizedBox.shrink();
-        final map = Map<String, dynamic>.from(optionData as Map);
+        final map = Map<String, dynamic>.from(optionData);
         final value = map['value']?.toString() ?? '';
         final label = map['label']?.toString() ?? value;
         final audioSrc = map['audio']?.toString();

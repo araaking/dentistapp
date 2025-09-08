@@ -4,6 +4,7 @@ import '../../../core/models/question_model.dart';
 import '../provider/diagnosis_provider.dart';
 import 'answer_option_widget.dart';
 import 'eq_widget/eq1_pain_score_widget.dart';
+import 'eq_widget/eq4_pain_score_widget.dart';
 import 'eq_widget/eq2_measurement_widget.dart';
 import 'eq_widget/eq3_audio_option_widget.dart';
 
@@ -45,7 +46,18 @@ class QuestionContentBuilder extends StatelessWidget {
         });
 
       case 'group_select_scores':
-        return EqPainScoreWidget(question: question);
+        // Distinguish EQ1 vs EQ4 by exact question code
+        switch (question.code) {
+          case 'E4':
+          case 'EQ4':
+            return Eq4PainScoreWidget(question: question);
+          case 'E1':
+          case 'EQ1':
+            return EqPainScoreWidget(question: question);
+          default:
+            // Fallback untuk kode lain yang tidak dikenali
+            return EqPainScoreWidget(question: question);
+        }
       
       case 'composite': // For EQ2
         return EqMeasurementWidget(question: question);
@@ -84,4 +96,6 @@ class QuestionContentBuilder extends StatelessWidget {
         return Text('Unsupported question type: $inputType');
     }
   }
+
+
 }

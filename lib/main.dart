@@ -62,7 +62,7 @@ void main() {
         ),
         // Layer 1: Provider (Manages State for UI) - For Diagnosis
         ChangeNotifierProvider(
-          create: (_) => DiagnosisProvider(questionRepository),
+          create: (_) => DiagnosisProvider(questionRepository, consultationRepository),
         ),
       ],
       child: MyApp(consultationRepository: consultationRepository),

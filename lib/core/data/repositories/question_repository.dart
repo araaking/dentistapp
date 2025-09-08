@@ -9,6 +9,7 @@ class QuestionRepository {
 
   /// Mengambil semua pertanyaan untuk form diagnosis.
   Future<AllQuestionsModel> getQuestions() async {
+    print('=== DEBUG: QuestionRepository.getQuestions() called ===');
     try {
       final response = await _questionApiProvider.getQuestions();
       
@@ -42,7 +43,15 @@ class QuestionRepository {
         }
         
         try {
-          return AllQuestionsModel.fromJson(responseData);
+          final allQuestions = AllQuestionsModel.fromJson(responseData);
+          print('=== DEBUG: Successfully parsed questions ===');
+          print('SQ questions: ${allQuestions.sq.length}');
+          print('EQ questions: ${allQuestions.eq.length}');
+          // Debug each EQ question
+          for (var eq in allQuestions.eq) {
+            print('EQ ${eq.code}: type=${eq.input.type}, areas=${eq.input.areas}');
+          }
+          return allQuestions;
         } catch (e) {
           // Specific error handling for parsing issues
           print('Error parsing questions JSON: $e');

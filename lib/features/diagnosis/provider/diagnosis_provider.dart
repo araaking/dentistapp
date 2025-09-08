@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/data/repositories/question_repository.dart';
+import '../../../core/data/repositories/consultation_repository.dart';
 import '../../../core/models/question_model.dart';
 
 enum DiagnosisStage { sq, eq, finished }
@@ -9,7 +10,9 @@ enum DiagnosisState { initial, loading, loaded, error }
 
 class DiagnosisProvider extends ChangeNotifier {
   final QuestionRepository _questionRepository;
-  DiagnosisProvider(this._questionRepository);
+  final ConsultationRepository _consultationRepository;
+  
+  DiagnosisProvider(this._questionRepository, this._consultationRepository);
 
   // State Variables
   DiagnosisState _state = DiagnosisState.initial;
@@ -92,8 +95,8 @@ class DiagnosisProvider extends ChangeNotifier {
         _currentIndex = 0;
       } else {
         _stage = DiagnosisStage.finished;
-        // TODO: Submit answers to repository
-        print("Diagnosis Finished! Answers: $_answers");
+        // Submit answers to repository
+        _submitConsultation();
       }
     }
     notifyListeners();
@@ -129,12 +132,46 @@ class DiagnosisProvider extends ChangeNotifier {
       final XFile? photo = await picker.pickImage(source: ImageSource.camera);
       if (photo != null) {
         final File photoFile = File(photo.path);
-        // Store the file path in answers
-        answerQuestion('E2_photo', photoFile);
+        // Store the file path in answers dengan struktur yang benar
+        final currentAnswers = (_answers['E2'] as Map<String, dynamic>?) ?? {};
+        final newAnswers = Map<String, dynamic>.from(currentAnswers);
+        newAnswers['photo'] = photoFile;  // Store File object for upload
+        answerQuestion('E2', newAnswers);
       }
     } catch (e) {
       print("Error taking picture: $e");
       // Handle camera error
+    }
+  }
+
+  Future<void> _submitConsultation() async {
+    try {
+      // Extract E2 photo file jika ada
+      File? e2PhotoFile;
+      final e2Data = _answers['E2'] as Map<String, dynamic>?;
+      if (e2Data != null && e2Data.containsKey('photo')) {
+        e2PhotoFile = e2Data['photo'] as File;
+      }
+
+      // Separate SQ and EQ answers
+      final sqAnswers = Map<String, dynamic>.fromEntries(
+        _answers.entries.where((entry) => entry.key.startsWith('SQ'))
+      );
+      final eqAnswers = Map<String, dynamic>.fromEntries(
+        _answers.entries.where((entry) => entry.key.startsWith('E'))
+      );
+
+      // Panggil repository
+      await _consultationRepository.submitConsultation(
+        sqAnswers: sqAnswers,
+        eqAnswers: eqAnswers,
+        e2Photo: e2PhotoFile,
+      );
+      
+      print("Consultation submitted successfully!");
+    } catch (e) {
+      print("Error submitting consultation: $e");
+      // You might want to show an error dialog or handle this differently
     }
   }
 }
