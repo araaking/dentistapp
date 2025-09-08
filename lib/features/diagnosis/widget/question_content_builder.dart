@@ -20,7 +20,7 @@ class QuestionContentBuilder extends StatelessWidget {
       case 'radio':
         // Cek jika ada audio; jika ya, gunakan widget audio khusus
         final hasAudio = (question.input.options ?? [])
-            .any((opt) => opt is Map && (opt as Map).containsKey('audio'));
+            .any((opt) => opt is Map && opt.containsKey('audio'));
         if (hasAudio) {
           return EqAudioOptionWidget(question: question);
         }
@@ -49,9 +49,37 @@ class QuestionContentBuilder extends StatelessWidget {
       
       case 'composite': // For EQ2
         return EqMeasurementWidget(question: question);
-
-      // Add other cases like 'select' if needed
+      case 'select':
+        return Builder(builder: (context) {
+          final provider = context.watch<DiagnosisProvider>();
+          final selected = provider.answers[question.code];
+          final options = (question.input.options ?? [])
+              .map((opt) => opt.toString())
+              .toList();
+          
+          return DropdownButtonFormField<String>(
+            value: selected?.toString(),
+            items: options.map((option) {
+              return DropdownMenuItem<String>(
+                value: option,
+                child: Text(option),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                provider.answerQuestion(question.code, value);
+              }
+            },
+            decoration: InputDecoration(
+              border: OutlineInputBorder(),
+              labelText: 'Pilih jawaban',
+            ),
+          );
+        });
       
+      case 'unknown':
+        return Text('Tipe pertanyaan tidak dikenali');
+        
       default:
         return Text('Unsupported question type: $inputType');
     }

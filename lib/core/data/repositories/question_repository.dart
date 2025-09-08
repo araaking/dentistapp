@@ -11,29 +11,54 @@ class QuestionRepository {
   Future<AllQuestionsModel> getQuestions() async {
     try {
       final response = await _questionApiProvider.getQuestions();
-
-      // PERBAIKAN: Cek jika data adalah List, ambil elemen pertama.
-      // Ini untuk menangani jika API mengembalikan [ { "sq": ..., "eq": ... } ]
-      // bukannya { "sq": ..., "eq": ... }
+      
+      // Debug logging untuk melihat response lengkap
+      print('API Response status: ${response.statusCode}');
+      print('API Response data type: ${response.data.runtimeType}');
+      print('API Response data: ${response.data}');
+      
       dynamic responseData = response.data;
-      if (responseData is List && responseData.isNotEmpty) {
-        responseData = responseData.first;
+
+      // Handle case when API returns error message in different format
+      if (responseData is Map && responseData.containsKey('message')) {
+        // This might be an error response from API
+        throw Exception('API Error: ${responseData['message']}');
       }
 
-      // Pastikan data yang akan diparsing adalah Map
+      // Handle case when response is a List (unexpected format)
+      if (responseData is List) {
+        if (responseData.isNotEmpty && responseData.first is Map) {
+          responseData = responseData.first;
+        } else {
+          throw Exception('Failed to load questions: API returned unexpected list format');
+        }
+      }
+
+      // Ensure we have a Map before parsing
       if (responseData is Map<String, dynamic>) {
-        return AllQuestionsModel.fromJson(responseData);
+        // Validasi bahwa response memiliki struktur yang diharapkan
+        if (!responseData.containsKey('sq') || !responseData.containsKey('eq')) {
+          throw Exception('Invalid question data: missing sq or eq fields');
+        }
+        
+        try {
+          return AllQuestionsModel.fromJson(responseData);
+        } catch (e) {
+          // Specific error handling for parsing issues
+          print('Error parsing questions JSON: $e');
+          print('Problematic JSON data: $responseData');
+          throw Exception('Failed to parse question data: $e');
+        }
       } else {
-        // Jika setelah pengecekan data tetap bukan Map, lempar error yang jelas
-        throw Exception(
-            'Format data pertanyaan tidak valid. Diharapkan Map, diterima ${responseData.runtimeType}');
+        throw Exception('Invalid question data format. Expected Map, got ${responseData.runtimeType}');
       }
     } on DioException catch (e) {
-      // Menggunakan pesan error dari response jika ada, jika tidak gunakan pesan default Dio
-      final errorMessage = e.response?.data['message'] ?? e.message;
+      // More detailed error handling
+      final errorMessage = e.response?.data?['message'] ?? 
+                          e.response?.data?.toString() ?? 
+                          e.message;
       throw Exception('Failed to load questions: $errorMessage');
     } catch (e) {
-      // Menangkap error lain yang mungkin terjadi
       throw Exception('An unexpected error occurred: $e');
     }
   }

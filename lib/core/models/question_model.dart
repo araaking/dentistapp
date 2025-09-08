@@ -6,11 +6,17 @@ class AllQuestionsModel {
   AllQuestionsModel({required this.sq, required this.eq});
 
   factory AllQuestionsModel.fromJson(Map<String, dynamic> json) {
+    // Handle incomplete JSON - provide empty lists if fields are missing
+    final sqData = json['sq'];
+    final eqData = json['eq'];
+    
     return AllQuestionsModel(
-      sq: List<QuestionModel>.from(
-          json['sq']?.map((x) => QuestionModel.fromJson(x)) ?? []),
-      eq: List<QuestionModel>.from(
-          json['eq']?.map((x) => QuestionModel.fromJson(x)) ?? []),
+      sq: sqData is List 
+          ? List<QuestionModel>.from(sqData.map((x) => QuestionModel.fromJson(x))) 
+          : [],
+      eq: eqData is List
+          ? List<QuestionModel>.from(eqData.map((x) => QuestionModel.fromJson(x)))
+          : [],
     );
   }
 }
@@ -28,17 +34,69 @@ class QuestionModel {
   });
 
   factory QuestionModel.fromJson(Map<String, dynamic> json) {
-    // PERBAIKAN: Tambahkan pengecekan tipe untuk 'input'
-    // untuk memastikan datanya adalah Map sebelum diparsing.
-    // Jika bukan Map (misalnya List kosong), kita berikan InputModel kosong.
-    final inputData = json['input'];
-    return QuestionModel(
-      code: json['code'],
-      text: json['text'],
-      input: inputData is Map<String, dynamic>
-          ? InputModel.fromJson(inputData)
-          : InputModel(type: 'unknown'), // Fallback jika input tidak valid
-    );
+    try {
+      // Handle different option formats with null safety
+      dynamic optionsData = json['input']?['options'];
+      List<String>? options;
+      
+      if (optionsData is List) {
+        if (optionsData.isNotEmpty && optionsData.first is Map) {
+          // Handle format: [{value: "...", label: "..."}]
+          options = optionsData.map<String>((item) {
+            if (item is Map) {
+              return item['value']?.toString() ?? item['label']?.toString() ?? '';
+            }
+            return item.toString();
+          }).toList();
+        } else {
+          // Handle format: ["...", "..."]
+          options = optionsData.map<String>((item) => item.toString()).toList();
+        }
+      }
+      
+      // Handle input data with comprehensive error handling
+      final inputData = json['input'];
+      InputModel inputModel;
+      
+      if (inputData is Map<String, dynamic>) {
+        try {
+          inputModel = InputModel.fromJson(inputData);
+          // Override options if we processed them above
+          if (options != null) {
+            inputModel = InputModel(
+              type: inputModel.type,
+              options: options,
+              defaultValue: inputModel.defaultValue,
+              areas: inputModel.areas,
+              min: inputModel.min,
+              max: inputModel.max,
+              labels: inputModel.labels,
+            );
+          }
+        } catch (e) {
+          // Fallback if InputModel parsing fails
+          print('Error parsing input data: $e');
+          inputModel = InputModel(type: 'unknown');
+        }
+      } else {
+        inputModel = InputModel(type: 'unknown');
+      }
+      
+      return QuestionModel(
+        code: json['code']?.toString() ?? 'unknown',
+        text: json['text']?.toString() ?? 'No text',
+        input: inputModel,
+      );
+    } catch (e) {
+      // Comprehensive error handling for entire parsing process
+      print('Error parsing question: $e');
+      print('Problematic question data: $json');
+      return QuestionModel(
+        code: 'error',
+        text: 'Failed to parse question',
+        input: InputModel(type: 'error'),
+      );
+    }
   }
 }
 

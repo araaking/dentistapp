@@ -16,11 +16,23 @@ class EqPainScoreWidget extends StatelessWidget {
 
     return Column(
       children: [
-        // Tampilkan gambar lokal untuk EQ1
+        // Tampilkan gambar lokal untuk EQ1 dengan error handling
         Image.asset(
           'assets/images/e1.png',
           height: 150,
           fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              height: 150,
+              color: Colors.grey[200],
+              child: Center(
+                child: Text(
+                  'Gambar tidak ditemukan',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ),
+            );
+          },
         ),
         const SizedBox(height: 20),
         ...(question.input.areas ?? <String>[]).map((area) {
