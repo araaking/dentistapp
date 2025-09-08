@@ -12,12 +12,14 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
   @override
   void dispose() {
+    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -30,10 +32,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       authProvider.register(
         _emailController.text,
         _passwordController.text,
-      ).then((_) {
+        _nameController.text,
+      ).then((_) async {
         if (mounted) {
           if (authProvider.state == AuthState.authenticated) {
-            // Navigasi ke halaman home setelah registrasi berhasil
+            // Patient sudah dibuat otomatis oleh backend, langsung navigasi ke home
             Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
           } else if (authProvider.state == AuthState.error) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -69,6 +72,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                 ),
                 const SizedBox(height: 40),
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nama Lengkap',
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Nama harus diisi';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -143,4 +160,3 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
-

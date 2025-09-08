@@ -11,9 +11,14 @@ import 'core/data/repositories/consultation_repository.dart';
 import 'core/theme/app_colors.dart';
 import 'core/utils/dio_client.dart';
 import 'core/data/provider/consultation_api_provider.dart';
+import 'core/data/provider/patient_api_provider.dart';
+import 'core/data/repositories/patient_repository.dart';
 
 // --- Feature Imports ---
 import 'features/authentication/provider/auth_provider.dart';
+import 'features/profile/provider/profile_provider.dart';
+import 'features/profile/screens/profile_screen.dart';
+import 'features/profile/screens/edit_profile_screen.dart';
 import 'features/authentication/screen/login_screen.dart';
 import 'features/authentication/screen/register_screen.dart';
 import 'features/diagnosis/provider/diagnosis_provider.dart';
@@ -54,6 +59,11 @@ void main() {
   final ConsultationRepository consultationRepository =
       ConsultationRepository(consultationApiProvider);
 
+  // --- Patient Dependencies ---
+  final PatientApiProvider patientApiProvider = PatientApiProvider(dioClient.dio);
+  final PatientRepository patientRepository = PatientRepository(patientApiProvider);
+  final ProfileProvider profileProvider = ProfileProvider(patientRepository);
+
   runApp(
     MultiProvider(
       providers: [
@@ -64,6 +74,10 @@ void main() {
         // Layer 1: Provider (Manages State for UI) - For Diagnosis
         ChangeNotifierProvider(
           create: (_) => DiagnosisProvider(questionRepository, consultationRepository),
+        ),
+        // Layer 1: Provider (Manages State for UI) - For Profile
+        ChangeNotifierProvider.value(
+          value: profileProvider,
         ),
       ],
       child: MyApp(consultationRepository: consultationRepository),
@@ -134,6 +148,8 @@ class MyApp extends StatelessWidget {
         '/history': (context) => HistoryScreen(
               consultationRepository: consultationRepository,
             ),
+        '/profile': (context) => const ProfileScreen(),
+        '/edit_profile': (context) => const EditProfileScreen(),
       },
     );
   }

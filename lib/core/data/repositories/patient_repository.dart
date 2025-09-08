@@ -1,50 +1,50 @@
 import 'package:dio/dio.dart';
 import '../provider/patient_api_provider.dart';
 
-// Ganti 'dynamic' dengan model Patient Anda.
-// import '../../models/patient_model.dart';
-
 class PatientRepository {
   final PatientApiProvider _patientApiProvider;
 
   PatientRepository(this._patientApiProvider);
 
-  /// Mengambil profil pasien.
-  Future<Map<String, dynamic>> getPatientProfile() async {
+  Future<Map<String, dynamic>> getPatient() async {
     try {
-      final response = await _patientApiProvider.getPatientProfile();
-      // Ganti return type menjadi Future<PatientModel>
-      // return PatientModel.fromJson(response.data['patient']);
-      return response.data['patient'];
+      final response = await _patientApiProvider.getPatient();
+      return response.data;
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
-        // Kasus khusus jika profil belum ada.
-        // Anda bisa melempar exception custom atau mengembalikan null.
-        throw Exception('Patient profile not found.');
+        return {'message': 'Profil pasien belum dibuat.'};
       }
-      throw Exception('Failed to get patient profile: ${e.message}');
+      throw Exception('Failed to get patient: ${e.message}');
+    } catch (e) {
+      throw Exception('Failed to get patient: $e');
     }
   }
 
-  /// Membuat profil pasien baru.
-  Future<Map<String, dynamic>> createPatientProfile(Map<String, dynamic> data) async {
+  Future<Map<String, dynamic>> createPatient(Map<String, dynamic> data) async {
     try {
-      final response = await _patientApiProvider.createPatientProfile(data);
-      // return PatientModel.fromJson(response.data['patient']);
-      return response.data['patient'];
+      final response = await _patientApiProvider.createPatient(data);
+      return response.data;
     } on DioException catch (e) {
-      throw Exception('Failed to create patient profile: ${e.response?.data['message']}');
+      if (e.response?.statusCode == 409) {
+        throw Exception('Profil pasien sudah ada.');
+      }
+      throw Exception('Failed to create patient: ${e.message}');
+    } catch (e) {
+      throw Exception('Failed to create patient: $e');
     }
   }
 
-  /// Memperbarui profil pasien.
-  Future<Map<String, dynamic>> updatePatientProfile(Map<String, dynamic> data) async {
+  Future<Map<String, dynamic>> updatePatient(Map<String, dynamic> data) async {
     try {
-      final response = await _patientApiProvider.updatePatientProfile(data);
-      // return PatientModel.fromJson(response.data['patient']);
-      return response.data['patient'];
+      final response = await _patientApiProvider.updatePatient(data);
+      return response.data;
     } on DioException catch (e) {
-      throw Exception('Failed to update patient profile: ${e.response?.data['message']}');
+      if (e.response?.statusCode == 404) {
+        throw Exception('Profil pasien belum dibuat.');
+      }
+      throw Exception('Failed to update patient: ${e.message}');
+    } catch (e) {
+      throw Exception('Failed to update patient: $e');
     }
   }
 }

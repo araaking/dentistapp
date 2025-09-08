@@ -2,9 +2,51 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../diagnosis/provider/diagnosis_provider.dart';
+import '../../profile/provider/profile_provider.dart';
+import '../../authentication/provider/auth_provider.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _selectedIndex = 0;
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    switch (index) {
+      case 0: // Diagnosis
+        final provider = context.read<DiagnosisProvider>();
+        provider.resetDiagnosis();
+        Navigator.of(context).pushNamed('/diagnosis');
+        break;
+      case 1: // Profil
+        Navigator.of(context).pushNamed('/profile');
+        break;
+      case 2: // LogOut
+        _handleLogout(context);
+        break;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Reset index ke 0 setiap kali kembali ke home screen
+    _selectedIndex = 0;
+  }
+
+  void _handleLogout(BuildContext context) async {
+    final authProvider = context.read<AuthProvider>();
+    await authProvider.logout();
+    Navigator.of(context).pushReplacementNamed('/login');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,48 +66,73 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
       ),
-      // TODO: Tambahkan BottomNavigationBar jika diperlukan nanti
+      bottomNavigationBar: BottomNavigationBar(
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.checklist_rtl),
+            label: 'Diagnosis',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            label: 'Profil',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.logout),
+            label: 'LogOut',
+          ),
+        ],
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: Colors.grey,
+        showUnselectedLabels: true,
+      ),
     );
   }
 
   Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Consumer<ProfileProvider>(
+      builder: (context, profileProvider, child) {
+        final patientName = profileProvider.patientData?['name'] ?? 'User';
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Hi, Jane!', // TODO: Ganti dengan nama user asli
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hi, $patientName!',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Bagaimana perasaanmu hari ini?',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
             ),
-            SizedBox(height: 4),
-            Text(
-              'Bagaimana perasaanmu hari ini?',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.textSecondary,
-              ),
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_outlined, color: AppColors.icon, size: 28),
+                  onPressed: () {},
+                ),
+                IconButton(
+                  icon: const Icon(Icons.search, color: AppColors.icon, size: 28),
+                  onPressed: () {},
+                ),
+              ],
             ),
           ],
-        ),
-        Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.notifications_outlined, color: AppColors.icon, size: 28),
-              onPressed: () {},
-            ),
-            IconButton(
-              icon: const Icon(Icons.search, color: AppColors.icon, size: 28),
-              onPressed: () {},
-            ),
-          ],
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -150,7 +217,9 @@ class HomeScreen extends StatelessWidget {
               _buildMenuIcon(Icons.history, 'Riwayat', () {
                 Navigator.of(context).pushNamed('/history');
               }),
-              _buildMenuIcon(Icons.person_outline, 'Profil', () {}),
+              _buildMenuIcon(Icons.person_outline, 'Profil', () {
+                Navigator.of(context).pushNamed('/profile');
+              }),
             ],
           ),
         ),

@@ -8,10 +8,11 @@ class AuthApiProvider {
   AuthApiProvider(this._dio);
 
   /// Melakukan request untuk registrasi pengguna baru.
-  /// Mengirim email dan password.
+  /// Mengirim email, password, dan name.
   Future<Response> register({
     required String email,
     required String password,
+    required String name,
   }) async {
     try {
       final response = await _dio.post(
@@ -19,6 +20,7 @@ class AuthApiProvider {
         data: {
           'email': email,
           'password': password,
+          'name': name,
         },
       );
       return response;

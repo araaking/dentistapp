@@ -44,17 +44,18 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> register(String email, String password) async {
+  Future<void> register(String email, String password, String name) async {
     _state = AuthState.loading;
     _errorMessage = '';
     notifyListeners();
 
     try {
-      final response = await _authRepository.register(email, password);
+      final response = await _authRepository.register(email, password, name);
       _token = response['token'];
 
       if (_token != null) {
         _state = AuthState.authenticated;
+        // Patient sudah dibuat otomatis oleh backend, tidak perlu createPatient lagi
       } else {
         _state = AuthState.error;
         _errorMessage = 'Register failed: Token not found in response.';

@@ -1,44 +1,22 @@
 import 'package:dio/dio.dart';
+import '../../utils/dio_client.dart';
 
 class PatientApiProvider {
   final Dio _dio;
 
   PatientApiProvider(this._dio);
 
-  /// Mengambil profil pasien milik pengguna yang sedang login.
-  Future<Response> getPatientProfile() async {
-    try {
-      final response = await _dio.get('api/patient');
-      return response;
-    } on DioException {
-      rethrow;
-    }
+  Future<Response> getPatient() async {
+    return await _dio.get('/api/patient');
   }
 
-  /// Membuat profil pasien baru.
-  /// Mengirim data seperti nama, tanggal lahir, dll.
-  Future<Response> createPatientProfile(Map<String, dynamic> patientData) async {
-    try {
-      final response = await _dio.post(
-        'api/patient',
-        data: patientData,
-      );
-      return response;
-    } on DioException {
-      rethrow;
-    }
+  Future<Response> createPatient(Map<String, dynamic> data) async {
+    print('=== DEBUG: Creating patient with data: $data');
+    return await _dio.post('/api/patient', data: data);
   }
 
-  /// Memperbarui profil pasien yang sudah ada.
-  Future<Response> updatePatientProfile(Map<String, dynamic> patientData) async {
-    try {
-      final response = await _dio.put(
-        'api/patient',
-        data: patientData,
-      );
-      return response;
-    } on DioException {
-      rethrow;
-    }
+  Future<Response> updatePatient(Map<String, dynamic> data) async {
+    print('=== DEBUG: Updating patient with data: $data');
+    return await _dio.put('/api/patient', data: data);
   }
 }

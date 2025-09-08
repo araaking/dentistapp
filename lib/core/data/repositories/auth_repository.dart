@@ -33,11 +33,12 @@ class AuthRepository {
   }
 
   /// Registrasi user baru.
-  Future<Map<String, dynamic>> register(String email, String password) async {
+  Future<Map<String, dynamic>> register(String email, String password, String name) async {
     try {
       final response = await _authApiProvider.register(
         email: email,
         password: password,
+        name: name,
       );
       return response.data;
     } on DioException catch (e) {
