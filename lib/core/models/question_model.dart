@@ -28,10 +28,16 @@ class QuestionModel {
   });
 
   factory QuestionModel.fromJson(Map<String, dynamic> json) {
+    // PERBAIKAN: Tambahkan pengecekan tipe untuk 'input'
+    // untuk memastikan datanya adalah Map sebelum diparsing.
+    // Jika bukan Map (misalnya List kosong), kita berikan InputModel kosong.
+    final inputData = json['input'];
     return QuestionModel(
       code: json['code'],
       text: json['text'],
-      input: InputModel.fromJson(json['input']),
+      input: inputData is Map<String, dynamic>
+          ? InputModel.fromJson(inputData)
+          : InputModel(type: 'unknown'), // Fallback jika input tidak valid
     );
   }
 }
