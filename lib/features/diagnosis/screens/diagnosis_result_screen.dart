@@ -5,12 +5,23 @@ import '../../../core/data/repositories/consultation_repository.dart';
 import '../../../core/theme/app_colors.dart';
 import '../provider/diagnosis_provider.dart';
 
+// Mapping penjelasan untuk setiap jenis diagnosis
+const Map<String, String> diagnosisDescriptions = {
+  'Myalgia': 'Nyeri otot pada rahang yang disebabkan oleh ketegangan atau kelelahan otot pengunyah.',
+  'Arthralgia': 'Nyeri pada sendi rahang (temporomandibular joint) tanpa disertai kerusakan struktural.',
+  'Headache attributed to TMD (HA-TMD)': 'Sakit kepala yang disebabkan oleh gangguan pada sendi rahang dan otot pengunyah.',
+  'Joint-related TMD': 'Gangguan yang terkait dengan struktur internal sendi rahang. Ini bisa mencakup bunyi sendi (klik), rahang terkunci (terbuka atau tertutup), atau perubahan degeneratif pada sendi.',
+  'No specific TMD diagnosis found.': 'Tidak ditemukan diagnosis TMD spesifik berdasarkan jawaban yang diberikan.'
+};
+
 class DiagnosisResultScreen extends StatefulWidget {
   final ConsultationRepository consultationRepository;
+  final dynamic consultationData; // Untuk data dari history
 
   const DiagnosisResultScreen({
     super.key,
     required this.consultationRepository,
+    this.consultationData,
   });
 
   @override
@@ -25,7 +36,15 @@ class _DiagnosisResultScreenState extends State<DiagnosisResultScreen> {
   @override
   void initState() {
     super.initState();
-    _submitAnswers();
+    
+    // Jika ada consultationData dari history, gunakan data tersebut
+    if (widget.consultationData != null) {
+      _result = widget.consultationData is Map ? Map<String, dynamic>.from(widget.consultationData) : {'consultation': widget.consultationData};
+      _submitting = false;
+    } else {
+      // Jika tidak ada data dari history, submit answers seperti biasa
+      _submitAnswers();
+    }
   }
 
   Future<void> _submitAnswers() async {
@@ -143,6 +162,8 @@ class _DiagnosisItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final description = diagnosisDescriptions[name] ?? 'Penjelasan tidak tersedia.';
+    
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(16),
@@ -151,21 +172,38 @@ class _DiagnosisItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.local_hospital, color: AppColors.primary),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.local_hospital, color: AppColors.primary),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600, 
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              name,
-              style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
             ),
           ),
         ],
@@ -199,4 +237,3 @@ class _ErrorState extends StatelessWidget {
     );
   }
 }
-

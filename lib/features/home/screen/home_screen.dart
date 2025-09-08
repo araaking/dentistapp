@@ -137,13 +137,22 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildMenuIcon(Icons.checklist_rtl, 'Diagnosis', () {}),
-            _buildMenuIcon(Icons.history, 'Riwayat', () {}),
-            _buildMenuIcon(Icons.person_outline, 'Profil', () {}),
-          ],
+        Builder(
+          builder: (context) => Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildMenuIcon(Icons.checklist_rtl, 'Diagnosis', () {
+                // Reset diagnosis state sebelum memulai diagnosis baru
+                final provider = context.read<DiagnosisProvider>();
+                provider.resetDiagnosis();
+                Navigator.of(context).pushNamed('/diagnosis');
+              }),
+              _buildMenuIcon(Icons.history, 'Riwayat', () {
+                Navigator.of(context).pushNamed('/history');
+              }),
+              _buildMenuIcon(Icons.person_outline, 'Profil', () {}),
+            ],
+          ),
         ),
       ],
     );

@@ -25,6 +25,11 @@ class ConsultationRepository {
     }
   }
 
+  /// Alias untuk getConsultationHistory (untuk kompatibilitas dengan HistoryScreen)
+  Future<List<dynamic>> getConsultations() async {
+    return getConsultationHistory();
+  }
+
   /// Mengambil detail satu konsultasi.
   Future<Map<String, dynamic>> getConsultationDetail(int consultationId) async {
     try {

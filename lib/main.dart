@@ -20,6 +20,7 @@ import 'features/diagnosis/provider/diagnosis_provider.dart';
 import 'features/diagnosis/screens/question_screen.dart';
 import 'features/diagnosis/screens/diagnosis_result_screen.dart';
 import 'features/home/screen/home_screen.dart';
+import 'features/history/screens/history_screen.dart';
 
 void main() {
   // =================================================================
@@ -123,7 +124,14 @@ class MyApp extends StatelessWidget {
         '/register': (context) => const RegisterScreen(),
         '/home': (context) => const HomeScreen(), 
         '/diagnosis': (context) => const QuestionScreen(),
-        '/diagnosis_result': (context) => DiagnosisResultScreen(
+        '/diagnosis_result': (context) {
+          final consultationData = ModalRoute.of(context)?.settings.arguments;
+          return DiagnosisResultScreen(
+            consultationRepository: consultationRepository,
+            consultationData: consultationData,
+          );
+        },
+        '/history': (context) => HistoryScreen(
               consultationRepository: consultationRepository,
             ),
       },
