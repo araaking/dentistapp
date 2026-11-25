@@ -19,9 +19,4 @@ class ConsultationApiProvider {
       options: Options(contentType: Headers.multipartFormDataContentType),
     );
   }
-
-  /// Melihat detail satu konsultasi spesifik.
-  Future<Response> getConsultationDetail(int consultationId) {
-    return _dio.get('api/consultations/$consultationId');
-  }
 }

@@ -48,3 +48,7 @@ app.*.map.json
 /android/key.properties
 *.jks
 *.keystore
+
+# Hasil alat bantu desain (dibuat ulang lewat flutter test tool/...)
+/tool/screenshots/out/
+/tool/icons/out/

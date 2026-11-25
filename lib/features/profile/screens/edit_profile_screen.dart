@@ -1,13 +1,17 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
-import '../../../core/theme/app_colors.dart';
+
+import '../../../core/models/patient.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_widgets.dart';
 import '../provider/profile_provider.dart';
 import '../widgets/profile_form.dart';
 
+/// Mengubah profil ([initial] terisi) atau membuat profil baru ([initial] null).
 class EditProfileScreen extends StatefulWidget {
-  final Map<String, dynamic>? initialData;
+  final Patient? initial;
 
-  const EditProfileScreen({super.key, this.initialData});
+  const EditProfileScreen({super.key, this.initial});
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -16,120 +20,133 @@ class EditProfileScreen extends StatefulWidget {
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _dateOfBirthController = TextEditingController();
   final _phoneController = TextEditingController();
-  String? _selectedGender;
+  DateTime? _dateOfBirth;
+  String? _gender;
+
+  bool get _isUpdate => widget.initial != null;
 
   @override
   void initState() {
     super.initState();
-    final initial = widget.initialData;
+    final initial = widget.initial;
     if (initial != null) {
-      _nameController.text = initial['name']?.toString() ?? '';
-      _dateOfBirthController.text = initial['date_of_birth']?.toString() ?? '';
-      _phoneController.text = initial['phone_number']?.toString() ?? '';
-      _selectedGender = initial['gender']?.toString();
+      _nameController.text = initial.name;
+      _phoneController.text = initial.phoneNumber ?? '';
+      _dateOfBirth = initial.dateOfBirth;
+      _gender = initial.gender;
     }
-    // Hapus pesan error lama dari layar sebelumnya.
+    // Hapus pesan error lama dari percobaan sebelumnya.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      context.read<ProfileProvider>().clearError();
+      if (mounted) context.read<ProfileProvider>().clearSaveError();
     });
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _dateOfBirthController.dispose();
     _phoneController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleSubmit() async {
+  Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
     final provider = context.read<ProfileProvider>();
     final navigator = Navigator.of(context);
-    final isUpdate = widget.initialData != null;
+    final messenger = ScaffoldMessenger.of(context);
 
-    final dateOfBirth = _dateOfBirthController.text.trim();
     final phone = _phoneController.text.trim();
+    final dob = _dateOfBirth;
 
     final Map<String, dynamic> data;
-    if (isUpdate) {
+    if (_isUpdate) {
       // PUT menerima nilai null: field yang dikosongkan dikirim sebagai null
       // agar terhapus di server.
       data = {
         'name': _nameController.text.trim(),
-        'date_of_birth': dateOfBirth.isEmpty ? null : dateOfBirth,
-        'gender': _selectedGender,
+        'date_of_birth': dob == null ? null : toApiDate(dob),
+        'gender': _gender,
         'phone_number': phone.isEmpty ? null : phone,
       };
     } else {
       data = {
         'name': _nameController.text.trim(),
-        if (dateOfBirth.isNotEmpty) 'date_of_birth': dateOfBirth,
-        if (_selectedGender != null) 'gender': _selectedGender,
+        if (dob != null) 'date_of_birth': toApiDate(dob),
+        if (_gender != null) 'gender': _gender,
         if (phone.isNotEmpty) 'phone_number': phone,
       };
     }
 
-    final success = isUpdate
-        ? await provider.updatePatientProfile(data)
-        : await provider.createPatientProfile(data);
+    final success = await provider.savePatientProfile(
+      data,
+      isUpdate: _isUpdate,
+    );
+    if (!success || !mounted) return;
 
-    if (success && mounted) {
-      navigator.pop();
-    }
+    navigator.pop();
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('Profil berhasil disimpan.')),
+      );
   }
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<ProfileProvider>();
+    final saving = provider.isSaving;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.initialData != null ? 'Edit Profil' : 'Buat Profil'),
-      ),
-      body: Consumer<ProfileProvider>(
-        builder: (context, provider, child) {
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  ProfileForm(
-                    nameController: _nameController,
-                    dateOfBirthController: _dateOfBirthController,
-                    phoneController: _phoneController,
-                    selectedGender: _selectedGender,
-                    onGenderChanged: (value) {
-                      setState(() {
-                        _selectedGender = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  if (provider.isLoading)
-                    const CircularProgressIndicator(color: AppColors.primary)
-                  else
-                    ElevatedButton(
-                      onPressed: _handleSubmit,
-                      child: const Text('Simpan Profil'),
+      appBar: AppBar(title: Text(_isUpdate ? 'Edit Profil' : 'Buat Profil')),
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.page,
+                AppSpacing.md,
+                AppSpacing.page,
+                AppSpacing.xl,
+              ),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ProfileForm(
+                      nameController: _nameController,
+                      phoneController: _phoneController,
+                      dateOfBirth: _dateOfBirth,
+                      onDateOfBirthChanged: (value) =>
+                          setState(() => _dateOfBirth = value),
+                      gender: _gender,
+                      onGenderChanged: (value) =>
+                          setState(() => _gender = value),
+                      enabled: !saving,
                     ),
-                  if (provider.error != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16.0),
-                      child: Text(
-                        provider.error!,
-                        style: const TextStyle(color: Colors.red),
-                        textAlign: TextAlign.center,
+                    if (provider.saveError != null) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      InlineNotice(
+                        message: provider.saveError!,
+                        tone: NoticeTone.danger,
                       ),
-                    ),
-                ],
+                    ],
+                  ],
+                ),
               ),
             ),
-          );
-        },
+          ),
+          BottomActionBar(
+            child: AppButton(
+              label: 'Simpan',
+              loading: saving,
+              onPressed: _submit,
+            ),
+          ),
+        ],
       ),
     );
   }

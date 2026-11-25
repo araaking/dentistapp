@@ -79,7 +79,7 @@ void main() {
       final e = ApiException.fromDioException(
           badResponse(401, {'message': 'Unauthenticated.'}));
       expect(e, isA<UnauthorizedException>());
-      expect(e.message, 'Sesi Anda telah berakhir, silakan login kembali.');
+      expect(e.message, 'Sesi Anda telah berakhir, silakan masuk kembali.');
     });
 
     test('403 dan 404 memakai pesan dari body', () {

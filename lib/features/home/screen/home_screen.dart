@@ -1,456 +1,396 @@
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
-import '../../../core/data/repositories/consultation_repository.dart';
-import '../../../core/errors/exceptions.dart';
+
+import '../../../core/models/consultation.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/utils/date_format.dart';
-import '../../diagnosis/provider/diagnosis_provider.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_logo.dart';
+import '../../../core/widgets/app_widgets.dart';
+import '../../history/provider/history_provider.dart';
+import '../../history/widgets/consultation_tile.dart';
 import '../../profile/provider/profile_provider.dart';
-import '../../authentication/provider/auth_provider.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+/// Tab Beranda: satu aksi utama (mulai pemeriksaan) dan ringkasan riwayat.
+class HomeScreen extends StatelessWidget {
+  final VoidCallback onStartDiagnosis;
+  final VoidCallback onOpenHistory;
+  final VoidCallback onOpenProfile;
+  final Future<void> Function() onRefresh;
 
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
+  const HomeScreen({
+    super.key,
+    required this.onStartDiagnosis,
+    required this.onOpenHistory,
+    required this.onOpenProfile,
+    required this.onRefresh,
+  });
 
-class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
-
-  // Riwayat terbaru (maks. 3) dari API
-  List<dynamic> _latestConsultations = [];
-  bool _historyLoading = true;
-  String? _historyError;
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    switch (index) {
-      case 0: // Diagnosis
-        _startDiagnosis();
-        break;
-      case 1: // Profil
-        _openRoute('/profile');
-        break;
-      case 2: // LogOut
-        _handleLogout();
-        break;
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    // Reset index ke 0 setiap kali kembali ke home screen
-    _selectedIndex = 0;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      // Muat profil agar header menampilkan nama pasien yang sebenarnya.
-      context.read<ProfileProvider>().loadPatientProfile();
-      _loadHistory();
-    });
-  }
-
-  /// Membuka rute lalu menyegarkan data saat kembali ke Beranda.
-  void _openRoute(String route, {Object? arguments}) {
-    Navigator.of(context).pushNamed(route, arguments: arguments).then((_) {
-      if (!mounted) return;
-      setState(() => _selectedIndex = 0);
-      _loadHistory();
-    });
-  }
-
-  void _startDiagnosis() {
-    // Reset diagnosis state sebelum memulai diagnosis baru
-    context.read<DiagnosisProvider>().resetDiagnosis();
-    _openRoute('/diagnosis');
-  }
-
-  Future<void> _loadHistory() async {
-    final repository = context.read<ConsultationRepository>();
-    if (mounted) {
-      setState(() {
-        _historyLoading = true;
-        _historyError = null;
-      });
-    }
-    try {
-      final consultations = await repository.getConsultations();
-      if (!mounted) return;
-      setState(() {
-        _latestConsultations = consultations.take(3).toList();
-        _historyLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _historyError = ApiException.messageOf(e);
-        _historyLoading = false;
-      });
-    }
-  }
-
-  Future<void> _handleLogout() async {
-    final authProvider = context.read<AuthProvider>();
-    final navigator = Navigator.of(context);
-    // Menghapus token + seluruh state pengguna (profil, diagnosis).
-    await authProvider.logout();
-    if (!mounted) return;
-    navigator.pushNamedAndRemoveUntil('/login', (route) => false);
-  }
+  /// Jumlah riwayat terbaru yang ditampilkan di Beranda.
+  static const int _recentCount = 3;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () async {
-            context.read<ProfileProvider>().loadPatientProfile();
-            await _loadHistory();
-          },
-          child: ListView(
-            padding: const EdgeInsets.all(24.0),
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 24),
-              _buildMainCard(context),
-              const SizedBox(height: 24),
-              _buildHealthNeeds(),
-              const SizedBox(height: 24),
-              _buildHistorySection(),
-            ],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: AppTheme.overlayStyle,
+      child: Scaffold(
+        body: SafeArea(
+          bottom: false,
+          child: RefreshIndicator(
+            onRefresh: onRefresh,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.page,
+                AppSpacing.lg,
+                AppSpacing.page,
+                AppSpacing.xxl,
+              ),
+              children: [
+                _Header(onOpenProfile: onOpenProfile),
+                const SizedBox(height: AppSpacing.xl),
+                _StartCard(onStart: onStartDiagnosis),
+                const SizedBox(height: AppSpacing.xl + 4),
+                _RecentHistory(
+                  onOpenHistory: onOpenHistory,
+                  onOpen: (consultation) => Navigator.of(context)
+                      .pushNamed('/diagnosis_result', arguments: consultation),
+                ),
+                const SizedBox(height: AppSpacing.xl + 4),
+                const _AboutTmdCard(),
+              ],
+            ),
           ),
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.checklist_rtl),
-            label: 'Diagnosis',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            label: 'Profil',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.logout),
-            label: 'LogOut',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: Colors.grey,
-        showUnselectedLabels: true,
-      ),
     );
   }
+}
 
-  Widget _buildHeader() {
-    return Consumer<ProfileProvider>(
-      builder: (context, profileProvider, child) {
-        final patientName = profileProvider.patientData?['name'] ?? 'User';
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Hi, $patientName!',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Bagaimana perasaanmu hari ini?',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
+class _Header extends StatelessWidget {
+  final VoidCallback onOpenProfile;
+
+  const _Header({required this.onOpenProfile});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final patient = context.watch<ProfileProvider>().patient;
+    final name = patient?.firstName ?? '';
+
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name.isEmpty ? 'Halo!' : 'Halo, $name',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.headlineMedium,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Bagaimana kondisi rahang Anda?',
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: AppColors.textSecondary,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Semantics(
+          button: true,
+          label: 'Buka profil',
+          excludeSemantics: true,
+          child: InkResponse(
+            onTap: onOpenProfile,
+            radius: 30,
+            child: CircleAvatar(
+              radius: 24,
+              backgroundColor: AppColors.primarySoft,
+              child: Text(
+                patient?.initials ?? '?',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryDark,
+                ),
               ),
             ),
-            Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.notifications_outlined, color: AppColors.icon, size: 28),
-                  onPressed: () {},
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StartCard extends StatelessWidget {
+  final VoidCallback onStart;
+
+  const _StartCard({required this.onStart});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFB8647A), AppColors.primaryDark],
+        ),
+        borderRadius: BorderRadius.circular(AppSpacing.xl),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.28),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          Positioned(
+            right: -18,
+            top: -14,
+            child: SizedBox(
+              width: 130,
+              height: 130,
+              child: CustomPaint(
+                painter: ToothPainter(
+                  color: Colors.white.withValues(alpha: 0.12),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.search, color: AppColors.icon, size: 28),
-                  onPressed: () {},
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Periksa sendi rahang Anda',
+                  style: TextStyle(
+                    fontSize: 21,
+                    height: 1.25,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.2,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Jawab pertanyaan singkat dan lakukan pemeriksaan mandiri '
+                  'untuk skrining gangguan sendi rahang (TMD).',
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    height: 1.45,
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                const Row(
+                  children: [
+                    _MetaChip(icon: Icons.schedule_rounded, label: '± 5 menit'),
+                    SizedBox(width: AppSpacing.sm),
+                    _MetaChip(icon: Icons.checklist_rounded, label: '2 bagian'),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.lg + 2),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: onStart,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: AppColors.primaryDark,
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Mulai Pemeriksaan'),
+                        SizedBox(width: AppSpacing.sm),
+                        Icon(Icons.arrow_forward_rounded, size: 20),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildMainCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _MetaChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            'Siap untuk konsultasi?',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+          Icon(icon, size: 15, color: Colors.white),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 8),
-          const Text(
-            'Jawab beberapa pertanyaan untuk mengetahui kondisi Anda.',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.white70,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: _startDiagnosis,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: AppColors.primary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text('Mulai Diagnosis Baru'),
-          )
         ],
       ),
     );
   }
+}
 
-  Widget _buildHealthNeeds() {
+class _RecentHistory extends StatelessWidget {
+  final VoidCallback onOpenHistory;
+  final ValueChanged<Consultation> onOpen;
+
+  const _RecentHistory({required this.onOpenHistory, required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    final history = context.watch<HistoryProvider>();
+    final items = history.items;
+
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
-          'Menu Utama',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
-          ),
+        SectionHeader(
+          title: 'Pemeriksaan terakhir',
+          actionLabel: items.length > HomeScreen._recentCount
+              ? 'Lihat semua'
+              : null,
+          onAction: onOpenHistory,
         ),
-        const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildMenuIcon(Icons.checklist_rtl, 'Diagnosis', _startDiagnosis),
-            _buildMenuIcon(Icons.history, 'Riwayat', () => _openRoute('/history')),
-            _buildMenuIcon(Icons.person_outline, 'Profil', () => _openRoute('/profile')),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMenuIcon(IconData icon, String label, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.softPinkAlt,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(icon, color: AppColors.icon, size: 30),
-          ),
-          const SizedBox(height: 8),
-          Text(label, style: const TextStyle(color: AppColors.textSecondary)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHistorySection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Riwayat Diagnosis',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+        const SizedBox(height: AppSpacing.md),
+        if (items.isNotEmpty)
+          for (final consultation in items.take(HomeScreen._recentCount))
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: ConsultationTile(
+                consultation: consultation,
+                onTap: () => onOpen(consultation),
               ),
-            ),
-            TextButton(
-              onPressed: () => _openRoute('/history'),
-              child: const Text('Lihat Semua'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ..._buildHistoryContent(),
-      ],
-    );
-  }
-
-  List<Widget> _buildHistoryContent() {
-    if (_historyLoading && _latestConsultations.isEmpty) {
-      return const [
-        Padding(
-          padding: EdgeInsets.symmetric(vertical: 24),
-          child: Center(
-            child: CircularProgressIndicator(color: AppColors.primary),
-          ),
-        ),
-      ];
-    }
-
-    if (_historyError != null && _latestConsultations.isEmpty) {
-      return [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.cardBackground,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: Column(
-            children: [
-              const Icon(Icons.error_outline, color: Colors.red, size: 32),
-              const SizedBox(height: 8),
-              Text(
-                'Gagal memuat riwayat:\n$_historyError',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: _loadHistory,
-                child: const Text('Coba Lagi'),
-              ),
-            ],
-          ),
-        ),
-      ];
-    }
-
-    if (_latestConsultations.isEmpty) {
-      return [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-          decoration: BoxDecoration(
-            color: AppColors.cardBackground,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: const Column(
-            children: [
-              Icon(Icons.history_toggle_off, size: 40, color: Colors.grey),
-              SizedBox(height: 8),
-              Text(
-                'Belum ada riwayat diagnosis',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ],
-          ),
-        ),
-      ];
-    }
-
-    final widgets = <Widget>[];
-    for (final consultation in _latestConsultations) {
-      if (widgets.isNotEmpty) widgets.add(const SizedBox(height: 12));
-      widgets.add(_buildHistoryItem(consultation));
-    }
-    return widgets;
-  }
-
-  Widget _buildHistoryItem(dynamic consultation) {
-    String diagnosis = 'Tidak ada diagnosis';
-    if (consultation is Map && consultation['diagnoses'] is List) {
-      final names = (consultation['diagnoses'] as List).map((d) {
-        if (d is Map && d['name'] != null) return d['name'].toString();
-        return d.toString();
-      }).toList();
-      if (names.isNotEmpty) diagnosis = names.first;
-    }
-    final date = formatDateId(
-      consultation is Map ? consultation['consultation_date'] : null,
-    );
-
-    return InkWell(
-      onTap: () => _openRoute('/diagnosis_result', arguments: consultation),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.receipt_long, color: AppColors.primary),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    diagnosis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+            )
+        else if (history.error != null)
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Riwayat belum dapat dimuat',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  history.error!,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: history.load,
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      alignment: Alignment.centerLeft,
                     ),
+                    child: const Text('Coba Lagi'),
                   ),
-                  Text(
-                    date,
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const Icon(Icons.chevron_right, color: Colors.grey),
-          ],
-        ),
+          )
+        else if (!history.hasLoaded)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+            child: LoadingView(),
+          )
+        else
+          AppCard(
+            padding: const EdgeInsets.all(AppSpacing.lg + 2),
+            child: Row(
+              children: [
+                const IconBadge(icon: Icons.history_rounded),
+                const SizedBox(width: AppSpacing.md + 2),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Belum ada pemeriksaan',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Hasil pemeriksaan pertama Anda akan muncul di sini.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _AboutTmdCard extends StatelessWidget {
+  const _AboutTmdCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      color: AppColors.primaryTint,
+      borderColor: AppColors.primarySoft,
+      padding: const EdgeInsets.all(AppSpacing.lg + 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.lightbulb_outline_rounded,
+                size: 20,
+                color: AppColors.primaryDark,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Text('Apa itu TMD?', style: theme.textTheme.titleMedium),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'TMD (temporomandibular disorder) adalah gangguan pada sendi '
+            'rahang dan otot pengunyah. Tandanya antara lain nyeri di rahang '
+            'atau pelipis, bunyi "klik" saat membuka mulut, dan rahang terasa '
+            'terkunci.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ],
       ),
     );
   }

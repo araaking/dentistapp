@@ -1,11 +1,11 @@
 {
-    "name": "dentistapp",
-    "short_name": "dentistapp",
+    "name": "Dentist App",
+    "short_name": "Dentist App",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FCF9F9",
+    "theme_color": "#A85769",
+    "description": "Pemeriksaan mandiri gangguan sendi rahang (TMD).",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
