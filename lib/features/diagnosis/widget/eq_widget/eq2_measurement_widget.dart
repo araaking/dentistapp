@@ -4,40 +4,60 @@ import 'package:provider/provider.dart';
 import '../../../../core/models/question_model.dart';
 import '../../provider/diagnosis_provider.dart';
 
-class EqMeasurementWidget extends StatelessWidget {
+class EqMeasurementWidget extends StatefulWidget {
   final QuestionModel question;
   const EqMeasurementWidget({super.key, required this.question});
 
   @override
+  State<EqMeasurementWidget> createState() => _EqMeasurementWidgetState();
+}
+
+class _EqMeasurementWidgetState extends State<EqMeasurementWidget> {
+  late final TextEditingController _openingController;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pulihkan nilai yang sudah diketik bila pengguna kembali ke pertanyaan ini.
+    final e2 = context.read<DiagnosisProvider>().answers['E2'];
+    final saved = e2 is Map ? e2['opening_mm'] : null;
+    _openingController = TextEditingController(text: saved?.toString() ?? '');
+  }
+
+  @override
+  void dispose() {
+    _openingController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final provider = context.watch<DiagnosisProvider>();
-    final currentAnswers = (provider.answers['E2'] as Map<String, dynamic>?) ?? {};
-    final photoAnswer = currentAnswers['photo'] as File?;
-    
+    final e2 = provider.answers['E2'];
+    final photo = e2 is Map ? e2['photo'] : null;
+    final File? photoAnswer = photo is File ? photo : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          "Pengukuran Bukaan Mulut (mm)",
+          'Pengukuran Bukaan Mulut (mm)',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 8),
         TextFormField(
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
+          controller: _openingController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
             hintText: 'Contoh: 40',
             suffixText: 'mm',
+            errorText: provider.validationError,
           ),
-          onChanged: (value) {
-            // Store the text value dengan struktur yang benar
-            final newAnswers = Map<String, dynamic>.from(currentAnswers);
-            newAnswers['opening_mm'] = value;
-            provider.answerQuestion('E2', newAnswers);  // ← GUNAKAN 'E2', BUKAN 'E2_opening'
-          },
+          onChanged: (value) => provider.setOpeningMm(value),
         ),
         const SizedBox(height: 24),
         const Text(
-          "Ambil Foto Wajah",
+          'Ambil Foto Wajah (opsional)',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 8),
@@ -61,11 +81,19 @@ class EqMeasurementWidget extends StatelessWidget {
                     children: [
                       Icon(Icons.camera_alt, size: 50, color: Colors.grey),
                       SizedBox(height: 8),
-                      Text("Ketuk untuk mengambil gambar"),
+                      Text('Ketuk untuk mengambil gambar'),
                     ],
                   ),
           ),
         ),
+        if (provider.photoError != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Text(
+              provider.photoError!,
+              style: const TextStyle(color: Colors.red, fontSize: 13),
+            ),
+          ),
       ],
     );
   }

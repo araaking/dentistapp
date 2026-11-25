@@ -6,12 +6,7 @@ class QuestionApiProvider {
   QuestionApiProvider(this._dio);
 
   /// Mengambil daftar lengkap pertanyaan (SQ & EQ).
-  Future<Response> getQuestions() async {
-    try {
-      final response = await _dio.get('api/questions');
-      return response;
-    } on DioException {
-      rethrow;
-    }
+  Future<Response> getQuestions() {
+    return _dio.get('api/questions');
   }
 }

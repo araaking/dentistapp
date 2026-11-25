@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_colors.dart';
+import 'package:flutter/services.dart';
 
+/// Form data diri pasien. Dipakai oleh layar Edit Profil dan Registrasi.
+/// Bila [nameController] null, kolom nama tidak ditampilkan (Registrasi sudah
+/// memiliki kolom nama sendiri).
 class ProfileForm extends StatelessWidget {
-  final TextEditingController nameController;
+  final TextEditingController? nameController;
   final TextEditingController dateOfBirthController;
   final TextEditingController phoneController;
   final String? selectedGender;
@@ -10,7 +13,7 @@ class ProfileForm extends StatelessWidget {
 
   const ProfileForm({
     super.key,
-    required this.nameController,
+    this.nameController,
     required this.dateOfBirthController,
     required this.phoneController,
     required this.selectedGender,
@@ -21,39 +24,53 @@ class ProfileForm extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        TextFormField(
-          controller: nameController,
-          decoration: const InputDecoration(
-            labelText: 'Nama Lengkap *',
-            border: OutlineInputBorder(),
+        if (nameController != null) ...[
+          TextFormField(
+            controller: nameController,
+            decoration: const InputDecoration(
+              labelText: 'Nama Lengkap *',
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Nama harus diisi';
+              }
+              return null;
+            },
           ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Nama harus diisi';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 16),
-        TextFormField(
-          controller: dateOfBirthController,
-          decoration: const InputDecoration(
-            labelText: 'Tanggal Lahir',
-            border: OutlineInputBorder(),
-          ),
-          readOnly: true,
-          onTap: () async {
-            final selectedDate = await showDatePicker(
-              context: context,
-              initialDate: DateTime.now(),
-              firstDate: DateTime(1900),
-              lastDate: DateTime.now(),
+          const SizedBox(height: 16),
+        ],
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: dateOfBirthController,
+          builder: (context, value, child) {
+            return TextFormField(
+              controller: dateOfBirthController,
+              decoration: InputDecoration(
+                labelText: 'Tanggal Lahir',
+                border: const OutlineInputBorder(),
+                suffixIcon: value.text.isEmpty
+                    ? const Icon(Icons.calendar_today)
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        tooltip: 'Kosongkan tanggal lahir',
+                        onPressed: () => dateOfBirthController.clear(),
+                      ),
+              ),
+              readOnly: true,
+              onTap: () async {
+                final selectedDate = await showDatePicker(
+                  context: context,
+                  initialDate: DateTime.tryParse(value.text) ?? DateTime.now(),
+                  firstDate: DateTime(1900),
+                  lastDate: DateTime.now(),
+                );
+                if (selectedDate != null) {
+                  // Format untuk backend: YYYY-MM-DD
+                  dateOfBirthController.text =
+                      '${selectedDate.year.toString().padLeft(4, '0')}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}';
+                }
+              },
             );
-            if (selectedDate != null) {
-              // Format untuk backend: YYYY-MM-DD
-              dateOfBirthController.text =
-                  '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}';
-            }
           },
         ),
         const SizedBox(height: 16),
@@ -64,8 +81,9 @@ class ProfileForm extends StatelessWidget {
             border: OutlineInputBorder(),
           ),
           items: const [
-            DropdownMenuItem(value: 'Male', child: Text('Laki-laki')),
-            DropdownMenuItem(value: 'Female', child: Text('Perempuan')),
+            DropdownMenuItem<String>(value: null, child: Text('Tidak diisi')),
+            DropdownMenuItem<String>(value: 'Male', child: Text('Laki-laki')),
+            DropdownMenuItem<String>(value: 'Female', child: Text('Perempuan')),
           ],
           onChanged: onGenderChanged,
         ),
@@ -75,8 +93,11 @@ class ProfileForm extends StatelessWidget {
           decoration: const InputDecoration(
             labelText: 'Nomor Telepon',
             border: OutlineInputBorder(),
+            counterText: '',
           ),
           keyboardType: TextInputType.phone,
+          maxLength: 15,
+          inputFormatters: [LengthLimitingTextInputFormatter(15)],
         ),
       ],
     );

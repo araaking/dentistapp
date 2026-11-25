@@ -1,41 +1,74 @@
 import 'package:dio/dio.dart';
-import '../../features/authentication/provider/auth_provider.dart';
+import 'package:flutter/foundation.dart';
+
+import '../storage/token_storage.dart';
 import 'constants.dart';
 
 class DioClient {
   final Dio _dio;
-  final AuthProvider? _authProvider;
+  final TokenStorage _tokenStorage;
 
-  DioClient(this._dio, [this._authProvider]) {
-    _dio.options.baseUrl = AppConstants.baseUrl;
+  /// Dipanggil saat server menjawab 401 untuk request terautentikasi
+  /// (kecuali login/register/validasi sesi/logout).
+  final Future<void> Function()? _onUnauthorized;
+
+  DioClient(
+    this._dio,
+    this._tokenStorage, {
+    Future<void> Function()? onUnauthorized,
+  }) : _onUnauthorized = onUnauthorized {
+    final base = AppConstants.baseUrl;
+    _dio.options.baseUrl = base.endsWith('/') ? base : '$base/';
+    _dio.options.connectTimeout = const Duration(seconds: 15);
+    _dio.options.sendTimeout = const Duration(seconds: 60);
+    _dio.options.receiveTimeout = const Duration(seconds: 30);
     _dio.options.headers['Accept'] = 'application/json';
     _dio.options.headers['Content-Type'] = 'application/json';
 
     _dio.interceptors.add(
-      QueuedInterceptorsWrapper(
+      InterceptorsWrapper(
         onRequest: (options, handler) {
-          if (_authProvider?.token != null) {
-            options.headers['Authorization'] = 'Bearer ${_authProvider!.token}';
+          final token = _tokenStorage.token;
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
           }
-          return handler.next(options);
+          handler.next(options);
         },
-        onError: (DioException e, handler) {
-          // Anda bisa menangani error 401 di sini, misalnya dengan refresh token
-          return handler.next(e);
+        onError: (DioException e, handler) async {
+          final skip =
+              e.requestOptions.extra[AppConstants.skipUnauthorizedHandlerKey] ==
+                  true;
+          final hadToken = e.requestOptions.headers['Authorization'] != null;
+          if (e.response?.statusCode == 401 && hadToken && !skip) {
+            final callback = _onUnauthorized;
+            if (callback != null) {
+              try {
+                await callback();
+              } catch (_) {
+                // Penanganan sesi tidak boleh menutupi error asli.
+              }
+            }
+          }
+          handler.next(e);
         },
       ),
     );
 
-    _dio.interceptors.add(
-      LogInterceptor(
-        request: true,
-        requestHeader: true,
-        requestBody: true,
-        responseHeader: true,
-        responseBody: true,
-        error: true,
-      ),
-    );
+    // Log hanya di build debug, tanpa header/body request agar password,
+    // token Bearer, dan data kesehatan tidak pernah tercatat.
+    if (kDebugMode) {
+      _dio.interceptors.add(
+        LogInterceptor(
+          request: false,
+          requestHeader: false,
+          requestBody: false,
+          responseHeader: false,
+          responseBody: false,
+          error: true,
+          logPrint: (object) => debugPrint(object.toString()),
+        ),
+      );
+    }
   }
 
   Dio get dio => _dio;

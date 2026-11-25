@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/date_format.dart';
 
 class HistoryItem extends StatelessWidget {
   final dynamic consultation;
@@ -13,7 +14,7 @@ class HistoryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final date = _formatDate(consultation['consultation_date']);
+    final date = formatDateId(consultation['consultation_date']);
     final diagnoses = _extractDiagnoses(consultation);
 
     return Card(
@@ -32,7 +33,7 @@ class HistoryItem extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
@@ -84,16 +85,6 @@ class HistoryItem extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _formatDate(dynamic date) {
-    if (date == null) return 'Tanggal tidak diketahui';
-    
-    final dateStr = date.toString();
-    if (dateStr.length >= 10) {
-      return dateStr.substring(0, 10); // Format YYYY-MM-DD
-    }
-    return dateStr;
   }
 
   List<String> _extractDiagnoses(dynamic consultation) {

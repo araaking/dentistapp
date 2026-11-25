@@ -22,27 +22,26 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
-    if (_formKey.currentState!.validate()) {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      authProvider.login(
-        _emailController.text,
-        _passwordController.text,
-      ).then((_) {
-        if (mounted) {
-          if (authProvider.state == AuthState.authenticated) {
-            // Navigasi ke halaman home setelah login berhasil
-            Navigator.of(context).pushReplacementNamed('/home');
-          } else if (authProvider.state == AuthState.error) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Login Gagal: ${authProvider.errorMessage}'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        }
-      });
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    await authProvider.login(
+      _emailController.text.trim(),
+      _passwordController.text,
+    );
+    if (!mounted) return;
+
+    if (authProvider.state == AuthState.authenticated) {
+      // Navigasi ke halaman home setelah login berhasil
+      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+    } else if (authProvider.state == AuthState.error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login Gagal: ${authProvider.errorMessage}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -124,7 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  
+
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pushNamed('/register');
@@ -140,4 +139,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-

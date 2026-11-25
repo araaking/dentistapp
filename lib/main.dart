@@ -8,6 +8,8 @@ import 'core/data/provider/question_api_provider.dart';
 import 'core/data/repositories/auth_repository.dart';
 import 'core/data/repositories/question_repository.dart';
 import 'core/data/repositories/consultation_repository.dart';
+import 'core/session/session_manager.dart';
+import 'core/storage/token_storage.dart';
 import 'core/theme/app_colors.dart';
 import 'core/utils/dio_client.dart';
 import 'core/data/provider/consultation_api_provider.dart';
@@ -16,6 +18,7 @@ import 'core/data/repositories/patient_repository.dart';
 
 // --- Feature Imports ---
 import 'features/authentication/provider/auth_provider.dart';
+import 'features/authentication/screen/splash_screen.dart';
 import 'features/profile/provider/profile_provider.dart';
 import 'features/profile/screens/profile_screen.dart';
 import 'features/profile/screens/edit_profile_screen.dart';
@@ -28,28 +31,42 @@ import 'features/home/screen/home_screen.dart';
 import 'features/history/screens/history_screen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+
   // =================================================================
   // SETUP DEPENDENCIES (DEPENDENCY INJECTION)
   // =================================================================
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  final GlobalKey<ScaffoldMessengerState> messengerKey =
+      GlobalKey<ScaffoldMessengerState>();
+
+  // Token disimpan di secure storage dan dibagikan ke SessionManager,
+  // DioClient, dan AuthProvider (tanpa ketergantungan melingkar).
+  final TokenStorage tokenStorage = TokenStorage();
+  final SessionManager sessionManager = SessionManager(
+    tokenStorage: tokenStorage,
+    navigatorKey: navigatorKey,
+    messengerKey: messengerKey,
+  );
+
+  // Dio memakai validateStatus bawaan (hanya 2xx sukses) agar 4xx menjadi
+  // DioException dan dipetakan oleh ApiException.fromDioException.
   final Dio dio = Dio();
-  dio.options.followRedirects = true;
-  dio.options.validateStatus = (status) {
-    return status! < 500;
-  };
+  final DioClient dioClient = DioClient(
+    dio,
+    tokenStorage,
+    onUnauthorized: () => sessionManager.expire(),
+  );
 
-  // --- Auth Dependencies ---\n  // Layer 3: API Provider (Talks to the internet)
-  final AuthApiProvider authApiProvider = AuthApiProvider(dio);
-  // Layer 2: Repository (Processes data)
+  // --- Auth Dependencies ---
+  final AuthApiProvider authApiProvider = AuthApiProvider(dioClient.dio);
   final AuthRepository authRepository = AuthRepository(authApiProvider);
-  final AuthProvider authProvider = AuthProvider(authRepository);
+  final AuthProvider authProvider =
+      AuthProvider(authRepository, tokenStorage, sessionManager);
 
-  // --- DioClient now depends on AuthProvider to get the token ---
-  final DioClient dioClient = DioClient(dio, authProvider);
-
-  // --- Diagnosis/Question Dependencies ---\n  // Layer 3: API Provider
+  // --- Diagnosis/Question Dependencies ---
   final QuestionApiProvider questionApiProvider =
       QuestionApiProvider(dioClient.dio);
-  // Layer 2: Repository
   final QuestionRepository questionRepository =
       QuestionRepository(questionApiProvider);
 
@@ -59,41 +76,53 @@ void main() {
   final ConsultationRepository consultationRepository =
       ConsultationRepository(consultationApiProvider);
 
+  final DiagnosisProvider diagnosisProvider =
+      DiagnosisProvider(questionRepository, consultationRepository);
+
   // --- Patient Dependencies ---
   final PatientApiProvider patientApiProvider = PatientApiProvider(dioClient.dio);
   final PatientRepository patientRepository = PatientRepository(patientApiProvider);
   final ProfileProvider profileProvider = ProfileProvider(patientRepository);
 
+  // Saat sesi dibersihkan (logout / hapus akun / 401), kosongkan state pengguna.
+  sessionManager.addClearListener(profileProvider.clear);
+  sessionManager.addClearListener(diagnosisProvider.clear);
+
   runApp(
     MultiProvider(
       providers: [
-        // Layer 1: Provider (Manages State for UI) - For Authentication
-        ChangeNotifierProvider.value(
-          value: authProvider,
-        ),
-        // Layer 1: Provider (Manages State for UI) - For Diagnosis
-        ChangeNotifierProvider(
-          create: (_) => DiagnosisProvider(questionRepository, consultationRepository),
-        ),
-        // Layer 1: Provider (Manages State for UI) - For Profile
-        ChangeNotifierProvider.value(
-          value: profileProvider,
-        ),
+        Provider<ConsultationRepository>.value(value: consultationRepository),
+        ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+        ChangeNotifierProvider<DiagnosisProvider>.value(value: diagnosisProvider),
+        ChangeNotifierProvider<ProfileProvider>.value(value: profileProvider),
       ],
-      child: MyApp(consultationRepository: consultationRepository),
+      child: MyApp(
+        consultationRepository: consultationRepository,
+        navigatorKey: navigatorKey,
+        messengerKey: messengerKey,
+      ),
     ),
   );
 }
 
 class MyApp extends StatelessWidget {
   final ConsultationRepository consultationRepository;
+  final GlobalKey<NavigatorState> navigatorKey;
+  final GlobalKey<ScaffoldMessengerState> messengerKey;
 
-  const MyApp({super.key, required this.consultationRepository});
+  const MyApp({
+    super.key,
+    required this.consultationRepository,
+    required this.navigatorKey,
+    required this.messengerKey,
+  });
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Self Diagnosis App',
+      navigatorKey: navigatorKey,
+      scaffoldMessengerKey: messengerKey,
       theme: ThemeData(
         primaryColor: AppColors.primary,
         scaffoldBackgroundColor: AppColors.background,
@@ -130,20 +159,18 @@ class MyApp extends StatelessWidget {
           labelStyle: const TextStyle(color: AppColors.textSecondary),
         ),
       ),
-      // Set initial route
-      initialRoute: '/login',
+      // Splash memvalidasi token tersimpan lalu menuju /home atau /login
+      initialRoute: '/splash',
       // Define all app routes
       routes: {
+        '/splash': (context) => const SplashScreen(),
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
-        '/home': (context) => const HomeScreen(), 
+        '/home': (context) => const HomeScreen(),
         '/diagnosis': (context) => const QuestionScreen(),
         '/diagnosis_result': (context) {
           final consultationData = ModalRoute.of(context)?.settings.arguments;
-          return DiagnosisResultScreen(
-            consultationRepository: consultationRepository,
-            consultationData: consultationData,
-          );
+          return DiagnosisResultScreen(consultationData: consultationData);
         },
         '/history': (context) => HistoryScreen(
               consultationRepository: consultationRepository,

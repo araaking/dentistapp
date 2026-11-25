@@ -6,37 +6,22 @@ class ConsultationApiProvider {
   ConsultationApiProvider(this._dio);
 
   /// Mengambil riwayat semua konsultasi milik pengguna.
-  Future<Response> getConsultationHistory() async {
-    try {
-      final response = await _dio.get('api/consultations');
-      return response;
-    } on DioException {
-      rethrow;
-    }
+  Future<Response> getConsultationHistory() {
+    return _dio.get('api/consultations');
   }
 
-  /// Mengirim jawaban form untuk membuat konsultasi baru.
-  /// `answersData` adalah Map yang berisi 'sq' dan 'eq'.
-  /// Ini menggunakan FormData untuk mendukung upload file (foto).
-  Future<Response> submitConsultation(FormData formData) async {
-    try {
-      final response = await _dio.post(
-        'api/consultations',
-        data: formData,
-      );
-      return response;
-    } on DioException {
-      rethrow;
-    }
+  /// Mengirim jawaban form untuk membuat konsultasi baru (multipart, agar
+  /// foto dapat dikirim sebagai file).
+  Future<Response> submitConsultation(FormData formData) {
+    return _dio.post(
+      'api/consultations',
+      data: formData,
+      options: Options(contentType: Headers.multipartFormDataContentType),
+    );
   }
 
   /// Melihat detail satu konsultasi spesifik.
-  Future<Response> getConsultationDetail(int consultationId) async {
-    try {
-      final response = await _dio.get('api/consultations/$consultationId');
-      return response;
-    } on DioException {
-      rethrow;
-    }
+  Future<Response> getConsultationDetail(int consultationId) {
+    return _dio.get('api/consultations/$consultationId');
   }
 }

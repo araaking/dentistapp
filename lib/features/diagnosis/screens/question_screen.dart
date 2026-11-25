@@ -20,6 +20,7 @@ class _QuestionScreenState extends State<QuestionScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       Provider.of<DiagnosisProvider>(context, listen: false).fetchQuestions();
     });
   }
@@ -35,7 +36,8 @@ class _QuestionScreenState extends State<QuestionScreen> {
         ),
         leading: Consumer<DiagnosisProvider>(
           builder: (context, provider, child) {
-            if (provider.currentQuestionNumber > 1 || provider.stage == DiagnosisStage.eq) {
+            if (provider.currentQuestionNumber > 1 ||
+                provider.stage == DiagnosisStage.eq) {
               return IconButton(
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () => provider.previousQuestion(),
@@ -52,18 +54,39 @@ class _QuestionScreenState extends State<QuestionScreen> {
             _navigated = true;
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
+              // Pengiriman konsultasi dimulai & dimiliki oleh halaman hasil
+              // lewat DiagnosisProvider.submitConsultation().
               Navigator.of(context).pushReplacementNamed('/diagnosis_result');
             });
           }
           if (provider.state == DiagnosisState.loading) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+            return const Center(
+                child: CircularProgressIndicator(color: AppColors.primary));
           }
 
           if (provider.state == DiagnosisState.error) {
-            return Center(child: Text(provider.errorMessage));
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                    const SizedBox(height: 16),
+                    Text(provider.errorMessage, textAlign: TextAlign.center),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => provider.fetchQuestions(),
+                      child: const Text('Coba Lagi'),
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
 
-          if (provider.state == DiagnosisState.loaded && provider.currentQuestion != null) {
+          if (provider.state == DiagnosisState.loaded &&
+              provider.currentQuestion != null) {
             final question = provider.currentQuestion!;
             return Padding(
               padding: const EdgeInsets.all(24.0),
@@ -77,10 +100,11 @@ class _QuestionScreenState extends State<QuestionScreen> {
                   Text(
                     question.text,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                        fontSize: 22, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 40),
-                  
+
                   // Centralized logic for building the question UI
                   Expanded(
                     child: SingleChildScrollView(
@@ -91,6 +115,7 @@ class _QuestionScreenState extends State<QuestionScreen> {
                   const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: () {
+                      // Bila jawaban belum valid (mis. E2), pesan tampil di field.
                       provider.nextQuestion();
                     },
                     child: const Text('Selanjutnya'),
@@ -109,10 +134,12 @@ class _QuestionScreenState extends State<QuestionScreen> {
   }
 
   // Helper method to decide which widget to build for the question body
-  Widget _buildQuestionBody(DiagnosisProvider provider, QuestionModel question) {
+  Widget _buildQuestionBody(
+      DiagnosisProvider provider, QuestionModel question) {
     // For simple SQ radio buttons
     if (provider.stage == DiagnosisStage.sq && question.input.type == 'radio') {
-      final options = (question.input.options ?? []).map((o) => o.toString()).toList();
+      final options =
+          (question.input.options ?? []).map((o) => o.toString()).toList();
       return Column(
         children: options.map((option) {
           final isSelected = provider.answers[question.code] == option;

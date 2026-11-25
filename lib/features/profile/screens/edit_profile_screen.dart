@@ -6,7 +6,7 @@ import '../widgets/profile_form.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final Map<String, dynamic>? initialData;
-  
+
   const EditProfileScreen({super.key, this.initialData});
 
   @override
@@ -23,12 +23,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.initialData != null) {
-      _nameController.text = widget.initialData!['name']?.toString() ?? '';
-      _dateOfBirthController.text = widget.initialData!['date_of_birth']?.toString() ?? '';
-      _phoneController.text = widget.initialData!['phone_number']?.toString() ?? '';
-      _selectedGender = widget.initialData!['gender']?.toString();
+    final initial = widget.initialData;
+    if (initial != null) {
+      _nameController.text = initial['name']?.toString() ?? '';
+      _dateOfBirthController.text = initial['date_of_birth']?.toString() ?? '';
+      _phoneController.text = initial['phone_number']?.toString() ?? '';
+      _selectedGender = initial['gender']?.toString();
     }
+    // Hapus pesan error lama dari layar sebelumnya.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<ProfileProvider>().clearError();
+    });
   }
 
   @override
@@ -40,22 +46,40 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _handleSubmit() async {
-    if (_formKey.currentState!.validate()) {
-      final provider = context.read<ProfileProvider>();
-      final data = {
-        'name': _nameController.text,
-        if (_dateOfBirthController.text.isNotEmpty) 'date_of_birth': _dateOfBirthController.text,
-        if (_selectedGender != null) 'gender': _selectedGender,
-        if (_phoneController.text.isNotEmpty) 'phone_number': _phoneController.text,
+    if (!_formKey.currentState!.validate()) return;
+
+    final provider = context.read<ProfileProvider>();
+    final navigator = Navigator.of(context);
+    final isUpdate = widget.initialData != null;
+
+    final dateOfBirth = _dateOfBirthController.text.trim();
+    final phone = _phoneController.text.trim();
+
+    final Map<String, dynamic> data;
+    if (isUpdate) {
+      // PUT menerima nilai null: field yang dikosongkan dikirim sebagai null
+      // agar terhapus di server.
+      data = {
+        'name': _nameController.text.trim(),
+        'date_of_birth': dateOfBirth.isEmpty ? null : dateOfBirth,
+        'gender': _selectedGender,
+        'phone_number': phone.isEmpty ? null : phone,
       };
+    } else {
+      data = {
+        'name': _nameController.text.trim(),
+        if (dateOfBirth.isNotEmpty) 'date_of_birth': dateOfBirth,
+        if (_selectedGender != null) 'gender': _selectedGender,
+        if (phone.isNotEmpty) 'phone_number': phone,
+      };
+    }
 
-      final success = widget.initialData != null
-          ? await provider.updatePatientProfile(data)
-          : await provider.createPatientProfile(data);
+    final success = isUpdate
+        ? await provider.updatePatientProfile(data)
+        : await provider.createPatientProfile(data);
 
-      if (success && mounted) {
-        Navigator.of(context).pop();
-      }
+    if (success && mounted) {
+      navigator.pop();
     }
   }
 
@@ -67,7 +91,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ),
       body: Consumer<ProfileProvider>(
         builder: (context, provider, child) {
-          return Padding(
+          return SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
             child: Form(
               key: _formKey,

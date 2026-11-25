@@ -6,17 +6,22 @@ class AllQuestionsModel {
   AllQuestionsModel({required this.sq, required this.eq});
 
   factory AllQuestionsModel.fromJson(Map<String, dynamic> json) {
-    // Handle incomplete JSON - provide empty lists if fields are missing
     final sqData = json['sq'];
     final eqData = json['eq'];
-    
+
     return AllQuestionsModel(
-      sq: sqData is List 
-          ? List<QuestionModel>.from(sqData.map((x) => QuestionModel.fromJson(x))) 
-          : [],
+      sq: sqData is List
+          ? sqData
+              .whereType<Map>()
+              .map((x) => QuestionModel.fromJson(Map<String, dynamic>.from(x)))
+              .toList()
+          : <QuestionModel>[],
       eq: eqData is List
-          ? List<QuestionModel>.from(eqData.map((x) => QuestionModel.fromJson(x)))
-          : [],
+          ? eqData
+              .whereType<Map>()
+              .map((x) => QuestionModel.fromJson(Map<String, dynamic>.from(x)))
+              .toList()
+          : <QuestionModel>[],
     );
   }
 }
@@ -35,42 +40,28 @@ class QuestionModel {
 
   factory QuestionModel.fromJson(Map<String, dynamic> json) {
     try {
-      print('=== DEBUG: Parsing question JSON ===');
-      print('JSON: $json');
-      
-      // Handle different option formats with null safety
-      dynamic optionsData = json['input']?['options'];
-      print('=== DEBUG: Options data: $optionsData ===');
-      
-      // Handle input data dengan mempertahankan struktur asli options
       final inputData = json['input'];
       InputModel inputModel;
-      
-      if (inputData is Map<String, dynamic>) {
+
+      if (inputData is Map) {
         try {
-          inputModel = InputModel.fromJson(inputData);
-          // JANGAN override options, biarkan struktur asli tetap utuh
-        } catch (e) {
-          // Fallback if InputModel parsing fails
-          print('Error parsing input data: $e');
+          inputModel = InputModel.fromJson(Map<String, dynamic>.from(inputData));
+        } catch (_) {
           inputModel = InputModel(type: 'unknown');
         }
       } else {
         inputModel = InputModel(type: 'unknown');
       }
-      
+
       return QuestionModel(
         code: json['code']?.toString() ?? 'unknown',
-        text: json['text']?.toString() ?? 'No text',
+        text: json['text']?.toString() ?? '',
         input: inputModel,
       );
-    } catch (e) {
-      // Comprehensive error handling for entire parsing process
-      print('=== DEBUG: Error parsing question: $e ===');
-      print('Problematic question data: $json');
+    } catch (_) {
       return QuestionModel(
         code: 'error',
-        text: 'Failed to parse question',
+        text: 'Pertanyaan tidak dapat dimuat',
         input: InputModel(type: 'error'),
       );
     }
@@ -81,10 +72,13 @@ class QuestionModel {
 class InputModel {
   final String type;
   final List<dynamic>? options; // Bisa List<String> atau List<Map>
-  final dynamic defaultValue; // Bisa String atau null
+  final dynamic defaultValue; // Bisa String, angka, Map, atau null
   final List<String>? areas;
   final int? min;
   final int? max;
+
+  /// Label skor untuk pertanyaan `group_select_scores`. Kunci = skor sebagai
+  /// string ("0", "1", ...), nilai = teks label (mis. "0 - Tidak Nyeri").
   final Map<String, String>? labels;
 
   InputModel({
@@ -98,33 +92,49 @@ class InputModel {
   });
 
   factory InputModel.fromJson(Map<String, dynamic> json) {
-    print('=== DEBUG: InputModel.fromJson: $json ===');
-    
-    // Handle labels conversion - PHP associative array becomes List in JSON
-    Map<String, String>? labels;
-    final labelsData = json['labels'];
-    if (labelsData is List) {
-      // Convert List to Map (for PHP associative array compatibility)
-      labels = {};
-      for (var item in labelsData) {
+    final optionsData = json['options'];
+    final areasData = json['areas'];
+
+    return InputModel(
+      type: json['type']?.toString() ?? 'unknown',
+      options: optionsData is List ? optionsData : null,
+      defaultValue: json['default'],
+      areas: areasData is List
+          ? areasData.map((a) => a.toString()).toList()
+          : null,
+      min: _asInt(json['min']),
+      max: _asInt(json['max']),
+      labels: parseLabels(json['labels']),
+    );
+  }
+
+  /// API mengirim `labels` sebagai list string berindeks skor
+  /// (`["0 - Tidak Nyeri", "1 - Ringan", ...]`). Format lama (list of map atau
+  /// map) tetap didukung.
+  static Map<String, String>? parseLabels(dynamic data) {
+    if (data is List) {
+      final result = <String, String>{};
+      for (var i = 0; i < data.length; i++) {
+        final item = data[i];
         if (item is Map) {
           item.forEach((key, value) {
-            labels![key.toString()] = value.toString();
+            result[key.toString()] = value.toString();
           });
+        } else if (item != null) {
+          result[i.toString()] = item.toString();
         }
       }
-    } else if (labelsData is Map) {
-      labels = Map<String, String>.from(labelsData);
+      return result;
     }
-    
-    return InputModel(
-      type: json['type'],
-      options: json['options'],
-      defaultValue: json['default'],
-      areas: json['areas'] != null ? List<String>.from(json['areas']) : null,
-      min: json['min'],
-      max: json['max'],
-      labels: labels, // Use the converted labels
-    );
+    if (data is Map) {
+      return data.map((k, v) => MapEntry(k.toString(), v.toString()));
+    }
+    return null;
+  }
+
+  static int? _asInt(dynamic value) {
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
   }
 }

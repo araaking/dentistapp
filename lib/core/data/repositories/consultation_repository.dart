@@ -1,90 +1,61 @@
-import 'dart:io';
 import 'package:dio/dio.dart';
+import '../consultation_payload.dart';
 import '../provider/consultation_api_provider.dart';
-import 'package:http_parser/http_parser.dart';
-
-// Ganti 'dynamic' dengan model Consultation Anda.
-// import '../../models/consultation_model.dart';
+import '../../errors/exceptions.dart';
+import '../../utils/json_utils.dart';
 
 class ConsultationRepository {
   final ConsultationApiProvider _consultationApiProvider;
 
   ConsultationRepository(this._consultationApiProvider);
 
-  /// Mengambil riwayat konsultasi.
+  /// Mengambil riwayat konsultasi (terbaru dulu).
   Future<List<dynamic>> getConsultationHistory() async {
     try {
       final response = await _consultationApiProvider.getConsultationHistory();
-      // Response-nya adalah list, jadi Anda akan melakukan mapping.
-      // return (response.data['consultations'] as List)
-      //     .map((json) => ConsultationModel.fromJson(json))
-      //     .toList();
-      return response.data['consultations'];
+      final list = asJsonMap(response.data)['consultations'];
+      return list is List ? list : <dynamic>[];
     } on DioException catch (e) {
-      throw Exception('Failed to get consultation history: ${e.message}');
+      throw ApiException.fromDioException(e);
     }
   }
 
   /// Alias untuk getConsultationHistory (untuk kompatibilitas dengan HistoryScreen)
-  Future<List<dynamic>> getConsultations() async {
+  Future<List<dynamic>> getConsultations() {
     return getConsultationHistory();
   }
 
   /// Mengambil detail satu konsultasi.
   Future<Map<String, dynamic>> getConsultationDetail(int consultationId) async {
     try {
-      final response = await _consultationApiProvider.getConsultationDetail(consultationId);
-      // return ConsultationModel.fromJson(response.data['consultation']);
-      return response.data['consultation'];
+      final response =
+          await _consultationApiProvider.getConsultationDetail(consultationId);
+      return asJsonMap(asJsonMap(response.data)['consultation']);
     } on DioException catch (e) {
-      throw Exception('Failed to get consultation detail: ${e.message}');
+      throw ApiException.fromDioException(e);
     }
   }
 
-  /// Mengirim jawaban konsultasi, termasuk kemungkinan foto.
-  Future<Map<String, dynamic>> submitConsultation({
-    required Map<String, dynamic> sqAnswers,
-    required Map<String, dynamic> eqAnswers,
-    File? e2Photo,
-  }) async {
+  /// Mengirim konsultasi (satu request multipart, foto sebagai `e2_photo_file`).
+  Future<Map<String, dynamic>> submitConsultation(
+      ConsultationPayload payload) async {
     try {
-      // Membuat FormData untuk mengirim data dan file.
-      final formDataMap = {
-        // API Anda mengharapkan format seperti 'sq[SQ1]': 'Ya'
-        // Kita perlu meratakan (flatten) map jawaban.
-        ..._flattenMap(sqAnswers, 'sq'),
-        ..._flattenMap(eqAnswers, 'eq'),
-      };
+      final fields = payload.toFormFields();
 
-      if (e2Photo != null) {
-        String fileName = e2Photo.path.split('/').last;
-        formDataMap['e2_photo_file'] = await MultipartFile.fromFile(
-          e2Photo.path,
-          filename: fileName,
-          contentType: MediaType('image', 'jpeg'), // Sesuaikan jika perlu
+      final photo = payload.photo;
+      if (photo != null) {
+        fields['e2_photo_file'] = await MultipartFile.fromFile(
+          photo.path,
+          filename: ConsultationPayload.fileNameOf(photo.path),
+          contentType: ConsultationPayload.photoContentType(photo.path),
         );
       }
 
-      final formData = FormData.fromMap(formDataMap);
-
-      final response = await _consultationApiProvider.submitConsultation(formData);
-      return response.data;
+      final response = await _consultationApiProvider
+          .submitConsultation(FormData.fromMap(fields));
+      return asJsonMap(response.data);
     } on DioException catch (e) {
-      throw Exception('Failed to submit consultation: ${e.response?.data['message']}');
+      throw ApiException.fromDioException(e);
     }
-  }
-
-  /// Helper function untuk mengubah map nested menjadi flat untuk FormData.
-  /// Contoh: {'E1': {'Temporalis': 1}} menjadi {'eq[E1][Temporalis]': 1}
-  Map<String, dynamic> _flattenMap(Map<String, dynamic> map, String prefix) {
-    final Map<String, dynamic> flattenedMap = {};
-    map.forEach((key, value) {
-      if (value is Map<String, dynamic>) {
-        flattenedMap.addAll(_flattenMap(value, '$prefix[$key]'));
-      } else {
-        flattenedMap['$prefix[$key]'] = value;
-      }
-    });
-    return flattenedMap;
   }
 }

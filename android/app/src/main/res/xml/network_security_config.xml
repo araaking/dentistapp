@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Lalu lintas HTTP (cleartext) dilarang pada build rilis; hanya HTTPS.
+     Untuk pengembangan lokal dengan HTTP, build debug memakai override di
+     android/app/src/debug/res/xml/network_security_config.xml (lihat README). -->
 <network-security-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">dentist.croloze.com</domain>
-    </domain-config>
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />

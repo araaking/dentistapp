@@ -23,7 +23,7 @@ class QuestionProgressBar extends StatelessWidget {
         const SizedBox(height: 8),
         LinearProgressIndicator(
           value: progress,
-          backgroundColor: AppColors.primary.withOpacity(0.2),
+          backgroundColor: AppColors.primary.withValues(alpha: 0.2),
           color: AppColors.primary,
           minHeight: 8,
         ),

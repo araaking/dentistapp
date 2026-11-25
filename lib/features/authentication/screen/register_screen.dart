@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../profile/widgets/profile_form.dart';
 import '../provider/auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -16,6 +17,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _dateOfBirthController = TextEditingController();
+  final _phoneController = TextEditingController();
+  String? _selectedGender;
 
   @override
   void dispose() {
@@ -23,31 +27,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _dateOfBirthController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
-  void _handleRegister() {
-    if (_formKey.currentState!.validate()) {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      authProvider.register(
-        _emailController.text,
-        _passwordController.text,
-        _nameController.text,
-      ).then((_) async {
-        if (mounted) {
-          if (authProvider.state == AuthState.authenticated) {
-            // Patient sudah dibuat otomatis oleh backend, langsung navigasi ke home
-            Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
-          } else if (authProvider.state == AuthState.error) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Registrasi Gagal: ${authProvider.errorMessage}'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        }
-      });
+  Future<void> _handleRegister() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final dateOfBirth = _dateOfBirthController.text.trim();
+    final phone = _phoneController.text.trim();
+
+    // Field opsional hanya dikirim bila terisi.
+    await authProvider.register(
+      _emailController.text.trim(),
+      _passwordController.text,
+      _nameController.text.trim(),
+      dateOfBirth: dateOfBirth.isEmpty ? null : dateOfBirth,
+      gender: _selectedGender,
+      phoneNumber: phone.isEmpty ? null : phone,
+    );
+    if (!mounted) return;
+
+    if (authProvider.state == AuthState.authenticated) {
+      // Patient sudah dibuat otomatis oleh backend, langsung navigasi ke home
+      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+    } else if (authProvider.state == AuthState.error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Registrasi Gagal: ${authProvider.errorMessage}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -79,7 +91,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     prefixIcon: Icon(Icons.person_outline),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
+                    if (value == null || value.trim().isEmpty) {
                       return 'Nama harus diisi';
                     }
                     return null;
@@ -128,6 +140,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       return 'Password tidak cocok.';
                     }
                     return null;
+                  },
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Data Diri (opsional)',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ProfileForm(
+                  dateOfBirthController: _dateOfBirthController,
+                  phoneController: _phoneController,
+                  selectedGender: _selectedGender,
+                  onGenderChanged: (value) {
+                    setState(() {
+                      _selectedGender = value;
+                    });
                   },
                 ),
                 const SizedBox(height: 24),

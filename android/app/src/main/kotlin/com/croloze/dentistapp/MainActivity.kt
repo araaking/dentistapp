@@ -1,4 +1,4 @@
-package com.example.dentistapp
+package com.croloze.dentistapp
 
 import io.flutter.embedding.android.FlutterActivity
 

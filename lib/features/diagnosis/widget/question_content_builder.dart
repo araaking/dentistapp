@@ -3,8 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../core/models/question_model.dart';
 import '../provider/diagnosis_provider.dart';
 import 'answer_option_widget.dart';
-import 'eq_widget/eq1_pain_score_widget.dart';
-import 'eq_widget/eq4_pain_score_widget.dart';
+import 'eq_widget/eq_pain_score_widget.dart';
 import 'eq_widget/eq2_measurement_widget.dart';
 import 'eq_widget/eq3_audio_option_widget.dart';
 
@@ -45,32 +44,22 @@ class QuestionContentBuilder extends StatelessWidget {
           );
         });
 
-      case 'group_select_scores':
-        // Distinguish EQ1 vs EQ4 by exact question code
-        switch (question.code) {
-          case 'E4':
-          case 'EQ4':
-            return Eq4PainScoreWidget(question: question);
-          case 'E1':
-          case 'EQ1':
-            return EqPainScoreWidget(question: question);
-          default:
-            // Fallback untuk kode lain yang tidak dikenali
-            return EqPainScoreWidget(question: question);
-        }
-      
-      case 'composite': // For EQ2
+      case 'group_select_scores': // E1 dan E4
+        return EqPainScoreWidget(question: question);
+
+      case 'composite': // E2
         return EqMeasurementWidget(question: question);
+
       case 'select':
         return Builder(builder: (context) {
           final provider = context.watch<DiagnosisProvider>();
-          final selected = provider.answers[question.code];
+          final selected = provider.answers[question.code]?.toString();
           final options = (question.input.options ?? [])
               .map((opt) => opt.toString())
               .toList();
-          
+
           return DropdownButtonFormField<String>(
-            value: selected?.toString(),
+            value: options.contains(selected) ? selected : null,
             items: options.map((option) {
               return DropdownMenuItem<String>(
                 value: option,
@@ -82,20 +71,15 @@ class QuestionContentBuilder extends StatelessWidget {
                 provider.answerQuestion(question.code, value);
               }
             },
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               border: OutlineInputBorder(),
               labelText: 'Pilih jawaban',
             ),
           );
         });
-      
-      case 'unknown':
-        return Text('Tipe pertanyaan tidak dikenali');
-        
+
       default:
-        return Text('Unsupported question type: $inputType');
+        return const Text('Tipe pertanyaan ini tidak didukung.');
     }
   }
-
-
 }

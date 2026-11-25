@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/data/repositories/patient_repository.dart';
+import '../../../core/errors/exceptions.dart';
 
 class ProfileProvider extends ChangeNotifier {
   final PatientRepository _patientRepository;
@@ -9,6 +10,7 @@ class ProfileProvider extends ChangeNotifier {
   Map<String, dynamic>? _patientData;
   bool _isLoading = false;
   String? _error;
+  int _epoch = 0; // naik setiap clear() agar respons lama diabaikan
 
   Map<String, dynamic>? get patientData => _patientData;
   bool get isLoading => _isLoading;
@@ -18,16 +20,18 @@ class ProfileProvider extends ChangeNotifier {
     _isLoading = true;
     _error = null;
     notifyListeners();
+    final epoch = _epoch;
 
     try {
       final response = await _patientRepository.getPatient();
-      if (response.containsKey('patient')) {
-        _patientData = response['patient'];
-      } else if (response.containsKey('message')) {
-        _patientData = null;
-      }
+      if (epoch != _epoch) return;
+      final patient = response['patient'];
+      // Tanpa kunci `patient` berarti profil belum dibuat (404).
+      _patientData =
+          patient is Map ? Map<String, dynamic>.from(patient) : null;
     } catch (e) {
-      _error = e.toString();
+      if (epoch != _epoch) return;
+      _error = ApiException.messageOf(e);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -41,12 +45,14 @@ class ProfileProvider extends ChangeNotifier {
 
     try {
       final response = await _patientRepository.createPatient(data);
-      _patientData = response['patient'];
+      final patient = response['patient'];
+      _patientData =
+          patient is Map ? Map<String, dynamic>.from(patient) : _patientData;
       _isLoading = false;
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiException.messageOf(e);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -60,12 +66,14 @@ class ProfileProvider extends ChangeNotifier {
 
     try {
       final response = await _patientRepository.updatePatient(data);
-      _patientData = response['patient'];
+      final patient = response['patient'];
+      _patientData =
+          patient is Map ? Map<String, dynamic>.from(patient) : _patientData;
       _isLoading = false;
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiException.messageOf(e);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -73,6 +81,15 @@ class ProfileProvider extends ChangeNotifier {
   }
 
   void clearError() {
+    _error = null;
+    notifyListeners();
+  }
+
+  /// Mengosongkan seluruh data profil (dipanggil saat logout / sesi berakhir).
+  void clear() {
+    _epoch++;
+    _patientData = null;
+    _isLoading = false;
     _error = null;
     notifyListeners();
   }

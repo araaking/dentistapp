@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- HANYA untuk build debug: mengizinkan HTTP ke server lokal
+     (mis. `--dart-define=API_BASE_URL=http://10.0.2.2:8000/`).
+     Menimpa res/xml/network_security_config.xml di src/main. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

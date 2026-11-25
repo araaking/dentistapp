@@ -22,45 +22,32 @@ class _EqAudioOptionWidgetState extends State<EqAudioOptionWidget> {
     super.dispose();
   }
 
-  void _playAudio(String? source, String label) async {
-    print('=== DEBUG: Attempting to play audio ===');
-    print('Source: $source');
-    print('Label: $label');
-    
+  Future<void> _playAudio(String? source, String label) async {
     if (source == null || source.isEmpty) {
-      print('=== DEBUG: Source is null/empty, using fallback ===');
-      // Fallback mapping berdasarkan label
+      // Fallback ke aset lokal berdasarkan label
       final lower = label.toLowerCase();
       if (lower.contains('krep')) {
         source = 'sounds/krepitasi.wav';
       } else if (lower.contains('klik')) {
         source = 'sounds/kliktunggaldanganda.wav';
       }
-      print('=== DEBUG: Fallback source: $source ===');
     }
-    
-    if (source == null || source.isEmpty) {
-      print('=== DEBUG: No audio source available ===');
-      return;
-    }
-    
+
+    if (source == null || source.isEmpty) return;
+
     try {
-      print('=== DEBUG: Playing audio from: $source ===');
       if (source.startsWith('http')) {
-        print('=== DEBUG: Playing from URL ===');
         await _audioPlayer.play(UrlSource(source));
       } else if (source.startsWith('assets/')) {
-        print('=== DEBUG: Playing from asset (with assets/ prefix) ===');
-        final assetPath = source.substring('assets/'.length);
-        await _audioPlayer.play(AssetSource(assetPath));
+        await _audioPlayer.play(AssetSource(source.substring('assets/'.length)));
       } else {
-        print('=== DEBUG: Playing from asset (without assets/ prefix) ===');
         await _audioPlayer.play(AssetSource(source));
       }
-      print('=== DEBUG: Audio playback started ===');
-    } catch (e) {
-      print('=== DEBUG: Error playing audio: $e ===');
-      print('=== DEBUG: Stack trace: ${e.toString()} ===');
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Contoh suara tidak dapat diputar.')),
+      );
     }
   }
 
@@ -68,11 +55,6 @@ class _EqAudioOptionWidgetState extends State<EqAudioOptionWidget> {
   Widget build(BuildContext context) {
     final provider = context.watch<DiagnosisProvider>();
     final selectedAnswer = provider.answers[widget.question.code];
-    
-    print('=== DEBUG: Building EqAudioOptionWidget ===');
-    print('Question code: ${widget.question.code}');
-    print('Selected answer: $selectedAnswer');
-    print('Options: ${widget.question.input.options}');
 
     return Column(
       children: (widget.question.input.options ?? []).map((optionData) {
@@ -81,11 +63,6 @@ class _EqAudioOptionWidgetState extends State<EqAudioOptionWidget> {
         final value = map['value']?.toString() ?? '';
         final label = map['label']?.toString() ?? value;
         final audioSrc = map['audio']?.toString();
-        
-        print('=== DEBUG: Option ===');
-        print('Value: $value');
-        print('Label: $label');
-        print('Audio source: $audioSrc');
 
         final isSelected = selectedAnswer == value;
 
@@ -99,7 +76,9 @@ class _EqAudioOptionWidgetState extends State<EqAudioOptionWidget> {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.white,
+                color: isSelected
+                    ? AppColors.primary.withValues(alpha: 0.1)
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isSelected ? AppColors.primary : Colors.grey.shade300,
@@ -109,11 +88,14 @@ class _EqAudioOptionWidgetState extends State<EqAudioOptionWidget> {
               child: Row(
                 children: [
                   Icon(
-                    isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                    isSelected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
                     color: isSelected ? AppColors.primary : Colors.grey.shade400,
                   ),
                   const SizedBox(width: 16),
-                  Expanded(child: Text(label, style: const TextStyle(fontSize: 16))),
+                  Expanded(
+                      child: Text(label, style: const TextStyle(fontSize: 16))),
                   if (audioSrc != null || label.isNotEmpty)
                     IconButton(
                       icon: const Icon(Icons.volume_up, color: AppColors.primary),
