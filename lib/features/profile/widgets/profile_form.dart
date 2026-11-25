@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 /// Form data diri pasien. Dipakai oleh layar Edit Profil dan Registrasi.
@@ -75,7 +75,8 @@ class ProfileForm extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         DropdownButtonFormField<String>(
-          value: selectedGender,
+          key: ValueKey(selectedGender),
+          initialValue: selectedGender,
           decoration: const InputDecoration(
             labelText: 'Jenis Kelamin',
             border: OutlineInputBorder(),

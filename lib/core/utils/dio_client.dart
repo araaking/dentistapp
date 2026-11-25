@@ -15,8 +15,8 @@ class DioClient {
   DioClient(
     this._dio,
     this._tokenStorage, {
-    Future<void> Function()? onUnauthorized,
-  }) : _onUnauthorized = onUnauthorized {
+    this._onUnauthorized,
+  }) {
     final base = AppConstants.baseUrl;
     _dio.options.baseUrl = base.endsWith('/') ? base : '$base/';
     _dio.options.connectTimeout = const Duration(seconds: 15);

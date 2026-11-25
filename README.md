@@ -9,12 +9,19 @@ Kontrak API ada di `docs/API.md` pada repositori backend (`backend-dentist`).
 
 ## Prasyarat
 
-- Flutter stable **3.32 atau lebih baru** (Dart SDK `^3.8.1`, sesuai `pubspec.yaml`;
-  proyek dibuat dengan revisi stable `d7b523b3…` seperti tercatat di `.metadata`).
-- Diuji dengan Flutter 3.50.1 (Dart 3.14.0): `flutter analyze` tanpa error/warning,
-  `flutter test` 36 test lulus. Masih ada info deprecation yang sengaja ditunda sebagai
-  migrasi mendatang: `package:flutter/material.dart` -> material_ui dan `value:` ->
-  `initialValue:` pada field form (membutuhkan versi Flutter yang sangat baru).
+- Flutter stable **3.50.0 atau lebih baru** (Dart SDK `^3.13.0`; keduanya dipaksa oleh
+  `environment` di `pubspec.yaml`, sehingga build di Flutter lama gagal dengan pesan jelas).
+  Material memakai paket pub `material_ui` (pengganti `package:flutter/material.dart`).
+- Diuji dengan Flutter 3.50.1 (Dart 3.14.0): `flutter analyze` -> No issues found,
+  `flutter test` semua lulus.
+- Dependensi sudah diperbarui ke versi terbaru: `audioplayers` 6.8.x,
+  `flutter_secure_storage` 11.x, `dio` 5.11.x, `image_picker` 1.2.4, `cupertino_icons` 2.x,
+  `flutter_lints` 6.x, `material_ui` 1.11.x.
+- iOS 13.0 atau lebih baru; Android minSdk 24 (`flutter.minSdkVersion`). Toolchain Android
+  mengikuti template Flutter 3.50: AGP 9.3.1, Kotlin 2.4.20, Gradle 9.5.0, Java 17.
+- Catatan upgrade: `flutter_secure_storage` 9 -> 11 mengganti algoritma enkripsi Android,
+  sehingga token login lama tidak terbaca; aplikasi menganggapnya belum login dan
+  pengguna cukup masuk ulang.
 - Android Studio / Android SDK (untuk Android) dan Xcode (untuk iOS, hanya di macOS).
 
 ```bash
@@ -117,10 +124,3 @@ Application ID / namespace Android dan bundle identifier iOS: `com.croloze.denti
       (Android dan iOS), pengiriman diagnosis dengan dan tanpa foto, foto > 5 MB ditolak.
 - [ ] Jalankan `flutter analyze` dan `flutter test` tanpa error.
 - [ ] Tidak ada rahasia (kunci, `key.properties`, `.jks`) di repositori.
-
-## Pembaruan dependensi (tertunda)
-
-Versi dependensi di `pubspec.yaml`/`pubspec.lock` sengaja belum diubah. Pembaruan,
-misalnya `audioplayers` 5.2.1 -> 6.x, membutuhkan `flutter pub upgrade` dan pengujian
-manual (khususnya pemutaran contoh suara E3 di Android dan iOS), sehingga dikerjakan
-terpisah.

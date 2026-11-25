@@ -31,6 +31,7 @@ class ApiException implements Exception {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
+      case DioExceptionType.transformTimeout:
         return NetworkException();
       case DioExceptionType.badCertificate:
         return NetworkException(

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/question_model.dart';
 import '../provider/diagnosis_provider.dart';
@@ -59,7 +59,8 @@ class QuestionContentBuilder extends StatelessWidget {
               .toList();
 
           return DropdownButtonFormField<String>(
-            value: options.contains(selected) ? selected : null,
+            key: ValueKey('${question.code}|$selected'),
+            initialValue: options.contains(selected) ? selected : null,
             items: options.map((option) {
               return DropdownMenuItem<String>(
                 value: option,
