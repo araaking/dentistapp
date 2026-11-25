@@ -18,7 +18,7 @@ Kontrak API ada di `docs/API.md` pada repositori backend (`backend-dentist`).
   `flutter_secure_storage` 11.x, `dio` 5.11.x, `image_picker` 1.2.4, `cupertino_icons` 2.x,
   `flutter_lints` 6.x, `material_ui` 1.11.x.
 - iOS 13.0 atau lebih baru; Android minSdk 24 (`flutter.minSdkVersion`). Toolchain Android
-  mengikuti template Flutter 3.50: AGP 9.3.1, Kotlin 2.4.20, Gradle 9.5.0, Java 17.
+  mengikuti template Flutter 3.50: AGP 9.3.1, Kotlin 2.4.20, Gradle 9.5.0, target Java 17. Build Android butuh JDK 21 (lint AGP 9.3 memakai API Java 21).
 - Catatan upgrade: `flutter_secure_storage` 9 -> 11 mengganti algoritma enkripsi Android,
   sehingga token login lama tidak terbaca; aplikasi menganggapnya belum login dan
   pengguna cukup masuk ulang.
