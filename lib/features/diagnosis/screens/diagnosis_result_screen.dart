@@ -1,178 +1,324 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+
+import '../../../core/models/consultation.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/utils/constants.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/date_format.dart';
+import '../../../core/utils/diagnosis_info.dart';
+import '../../../core/widgets/app_widgets.dart';
 import '../../authentication/provider/auth_provider.dart';
 import '../provider/diagnosis_provider.dart';
 
-// Mapping penjelasan untuk setiap jenis diagnosis
-const Map<String, String> diagnosisDescriptions = {
-  'Myalgia': 'Nyeri otot pada rahang yang disebabkan oleh ketegangan atau kelelahan otot pengunyah.',
-  'Arthralgia': 'Nyeri pada sendi rahang (temporomandibular joint) tanpa disertai kerusakan struktural.',
-  'Headache attributed to TMD (HA-TMD)': 'Sakit kepala yang disebabkan oleh gangguan pada sendi rahang dan otot pengunyah.',
-  'Joint-related TMD': 'Gangguan yang terkait dengan struktur internal sendi rahang. Ini bisa mencakup bunyi sendi (klik), rahang terkunci (terbuka atau tertutup), atau perubahan degeneratif pada sendi.',
-  'No specific TMD diagnosis found.': 'Tidak ditemukan diagnosis TMD spesifik berdasarkan jawaban yang diberikan.'
-};
-
-/// Menampilkan hasil diagnosis.
+/// Menampilkan hasil pemeriksaan.
 ///
-/// - Diagnosis baru (`consultationData == null`): pengiriman dimiliki oleh
+/// - Pemeriksaan baru ([consultation] null): pengiriman dimiliki oleh
 ///   [DiagnosisProvider.submitConsultation] (hanya sekali); layar ini hanya
 ///   memicu dan mengamati statusnya.
-/// - Dari riwayat: menampilkan data konsultasi yang diberikan sebagai argumen.
+/// - Dari riwayat: menampilkan [consultation] yang diberikan.
 class DiagnosisResultScreen extends StatefulWidget {
-  final dynamic consultationData; // Untuk data dari history
+  final Consultation? consultation;
 
-  const DiagnosisResultScreen({
-    super.key,
-    this.consultationData,
-  });
+  const DiagnosisResultScreen({super.key, this.consultation});
 
   @override
   State<DiagnosisResultScreen> createState() => _DiagnosisResultScreenState();
 }
 
 class _DiagnosisResultScreenState extends State<DiagnosisResultScreen> {
+  late final DiagnosisProvider _provider;
+
+  bool get _isNewResult => widget.consultation == null;
+
   @override
   void initState() {
     super.initState();
-    if (widget.consultationData == null) {
+    _provider = context.read<DiagnosisProvider>();
+    if (_isNewResult) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        context.read<DiagnosisProvider>().submitConsultation();
+        _provider.submitConsultation();
       });
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Hasil Diagnosis'),
-      ),
-      body: _buildBody(),
-    );
+  void dispose() {
+    if (_isNewResult) {
+      // Jawaban kesehatan tidak perlu tinggal di memori setelah hasil ditutup.
+      final provider = _provider;
+      Future.microtask(provider.resetDiagnosis);
+    }
+    super.dispose();
   }
 
-  Widget _buildBody() {
-    final history = widget.consultationData;
+  void _close() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+    } else {
+      navigator.pushNamedAndRemoveUntil('/home', (route) => false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final history = widget.consultation;
     if (history != null) {
-      final data = history is Map
-          ? Map<String, dynamic>.from(history)
-          : <String, dynamic>{'consultation': history};
-      return _ResultContent(data: data);
+      return _scaffold(
+        canPop: true,
+        body: _ResultContent(
+          consultation: history,
+          closeLabel: 'Kembali',
+          onClose: _close,
+        ),
+      );
     }
 
-    return Consumer<DiagnosisProvider>(
-      builder: (context, provider, child) {
-        switch (provider.submissionState) {
-          case SubmissionState.error:
-            return _ErrorState(
-              message: provider.submissionError,
-              onRetry: () => provider.submitConsultation(),
-            );
-          case SubmissionState.success:
-            return _ResultContent(data: provider.submissionResult ?? {});
-          case SubmissionState.idle:
-          case SubmissionState.submitting:
-            return const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(color: AppColors.primary),
-                  SizedBox(height: 16),
-                  Text('Menyimpan hasil diagnosis...',
-                      style: TextStyle(color: AppColors.textSecondary)),
-                ],
-              ),
-            );
-        }
-      },
+    final provider = context.watch<DiagnosisProvider>();
+    final submitting =
+        provider.submissionState == SubmissionState.idle ||
+        provider.submissionState == SubmissionState.submitting;
+
+    final Widget body;
+    switch (provider.submissionState) {
+      case SubmissionState.idle:
+      case SubmissionState.submitting:
+        body = const LoadingView(label: 'Menganalisis jawaban Anda…');
+      case SubmissionState.error:
+        body = _SubmissionError(
+          message: provider.submissionError,
+          onRetry: provider.submitConsultation,
+          onClose: _close,
+        );
+      case SubmissionState.success:
+        body = _ResultContent(
+          consultation: provider.submissionResult ?? const Consultation(),
+          closeLabel: 'Kembali ke Beranda',
+          onClose: _close,
+        );
+    }
+
+    // Saat mengirim, tombol kembali dikunci agar hasil tidak terlewat.
+    return _scaffold(canPop: !submitting, body: body);
+  }
+
+  Widget _scaffold({required bool canPop, required Widget body}) {
+    return PopScope(
+      canPop: canPop,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Hasil Pemeriksaan'),
+          automaticallyImplyLeading: false,
+          leading: canPop
+              ? IconButton(
+                  tooltip: 'Tutup',
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: _close,
+                )
+              : null,
+        ),
+        body: body,
+      ),
     );
   }
 }
 
 class _ResultContent extends StatelessWidget {
-  final Map<String, dynamic> data;
-  const _ResultContent({required this.data});
+  final Consultation consultation;
+  final String closeLabel;
+  final VoidCallback onClose;
+
+  const _ResultContent({
+    required this.consultation,
+    required this.closeLabel,
+    required this.onClose,
+  });
 
   @override
   Widget build(BuildContext context) {
-    // Cari struktur diagnoses di berbagai kemungkinan bentuk response
-    final consultation = data['consultation'];
-    List<dynamic> diagnoses = [];
-    if (data['diagnoses'] is List) {
-      diagnoses = data['diagnoses'] as List;
-    } else if (consultation is Map && consultation['diagnoses'] is List) {
-      diagnoses = consultation['diagnoses'] as List;
-    }
+    final theme = Theme.of(context);
+    final names = consultation.diagnoses.isEmpty
+        ? const <String?>[null]
+        : consultation.diagnoses;
+    final infos = names.map(DiagnosisInfo.of).toList();
+    final needsAttention = infos.any(
+      (info) => info.tone == DiagnosisTone.attention,
+    );
+    final photoUrl = consultation.photoUrl;
 
-    String? photoUrl;
-    final rawPhoto = data['e2_photo_url'] ??
-        (consultation is Map ? consultation['e2_photo_url'] : null);
-    if (rawPhoto is String && rawPhoto.isNotEmpty) {
-      photoUrl = AppConstants.resolveApiUrl(rawPhoto);
-    }
-
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'Kemungkinan Diagnosis',
-                    style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary),
-                    textAlign: TextAlign.center,
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.page,
+              AppSpacing.sm,
+              AppSpacing.page,
+              AppSpacing.xl,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (consultation.date != null) ...[
+                  Text(
+                    'Diperiksa ${formatDateTimeId(consultation.date)}',
+                    style: theme.textTheme.bodyMedium,
                   ),
-                  const SizedBox(height: 16),
-                  if (diagnoses.isEmpty)
-                    const Center(
-                        child: Text('Tidak ada diagnosis tersedia.',
-                            style: TextStyle(color: AppColors.textSecondary)))
-                  else
-                    ...diagnoses.map((d) {
-                      String name = '';
-                      if (d is Map && d['name'] != null) {
-                        name = d['name'].toString();
-                      } else {
-                        name = d.toString();
-                      }
-                      return _DiagnosisItem(name: name);
-                    }),
-                  if (photoUrl != null) ...[
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Foto Bukaan Mulut',
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary),
-                    ),
-                    const SizedBox(height: 8),
-                    _ConsultationPhoto(url: photoUrl),
-                  ],
+                  const SizedBox(height: AppSpacing.md),
                 ],
-              ),
+                for (final info in infos) ...[
+                  _DiagnosisCard(info: info),
+                  const SizedBox(height: AppSpacing.md),
+                ],
+                const SizedBox(height: AppSpacing.sm),
+                Text('Langkah selanjutnya', style: theme.textTheme.titleLarge),
+                const SizedBox(height: AppSpacing.md),
+                AppCard(
+                  child: Column(
+                    children: needsAttention
+                        ? const [
+                            _NextStep(
+                              icon: Icons.medical_services_outlined,
+                              text:
+                                  'Periksakan diri ke dokter gigi untuk '
+                                  'pemeriksaan lebih lanjut.',
+                            ),
+                            SizedBox(height: AppSpacing.md),
+                            _NextStep(
+                              icon: Icons.history_rounded,
+                              text:
+                                  'Tunjukkan hasil ini saat konsultasi. '
+                                  'Hasil tersimpan di menu Riwayat.',
+                            ),
+                          ]
+                        : const [
+                            _NextStep(
+                              icon: Icons.event_repeat_outlined,
+                              text:
+                                  'Ulangi pemeriksaan bila keluhan muncul '
+                                  'atau berubah.',
+                            ),
+                            SizedBox(height: AppSpacing.md),
+                            _NextStep(
+                              icon: Icons.medical_services_outlined,
+                              text:
+                                  'Tetap konsultasikan ke dokter gigi bila '
+                                  'Anda merasakan nyeri atau rahang sulit '
+                                  'digerakkan.',
+                            ),
+                          ],
+                  ),
+                ),
+                if (photoUrl != null) ...[
+                  const SizedBox(height: AppSpacing.xl),
+                  Text('Foto bukaan mulut', style: theme.textTheme.titleLarge),
+                  const SizedBox(height: AppSpacing.md),
+                  _ConsultationPhoto(url: photoUrl),
+                ],
+                const SizedBox(height: AppSpacing.xl),
+                const InlineNotice(
+                  message:
+                      'Hasil ini adalah skrining awal berdasarkan jawaban '
+                      'Anda, bukan diagnosis medis. Hanya dokter gigi yang '
+                      'dapat memastikan kondisi Anda.',
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context)
-                  .pushNamedAndRemoveUntil('/home', (route) => false);
-            },
-            child: const Text('Kembali ke Beranda'),
-          )
+        ),
+        BottomActionBar(
+          child: AppButton(label: closeLabel, onPressed: onClose),
+        ),
+      ],
+    );
+  }
+}
+
+class _DiagnosisCard extends StatelessWidget {
+  final DiagnosisInfo info;
+
+  const _DiagnosisCard({required this.info});
+
+  @override
+  Widget build(BuildContext context) {
+    final clear = info.tone == DiagnosisTone.clear;
+    final accent = clear ? AppColors.success : AppColors.primaryDark;
+    final background = clear ? AppColors.successSoft : AppColors.primarySoft;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(AppSpacing.xl),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          IconBadge(
+            icon: clear
+                ? Icons.check_circle_outline_rounded
+                : Icons.monitor_heart_outlined,
+            color: accent,
+            background: AppColors.surface,
+            size: 52,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text(
+            clear ? 'HASIL SKRINING' : 'KEMUNGKINAN KONDISI',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.7,
+              color: accent,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs + 2),
+          Text(info.title, style: Theme.of(context).textTheme.headlineSmall),
+          if (info.medicalTerm != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              info.medicalTerm!,
+              style: const TextStyle(
+                fontSize: 14,
+                fontStyle: FontStyle.italic,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            info.description,
+            style: Theme.of(context).textTheme.bodyLarge
+                ?.copyWith(fontSize: 15),
+          ),
         ],
       ),
+    );
+  }
+}
+
+class _NextStep extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _NextStep({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 22, color: AppColors.primary),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Text(
+            text,
+            style: Theme.of(context).textTheme.bodyLarge
+                ?.copyWith(fontSize: 15),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -180,45 +326,48 @@ class _ResultContent extends StatelessWidget {
 /// Foto konsultasi: URL privat, wajib memakai header Authorization.
 class _ConsultationPhoto extends StatelessWidget {
   final String url;
+
   const _ConsultationPhoto({required this.url});
+
+  static const double _height = 220;
 
   @override
   Widget build(BuildContext context) {
     final token = context.read<AuthProvider>().token;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(AppSpacing.radius),
       child: Image.network(
         url,
-        headers: {
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-        height: 220,
+        headers: {if (token != null) 'Authorization': 'Bearer $token'},
+        height: _height,
         width: double.infinity,
         fit: BoxFit.cover,
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;
           return Container(
-            height: 220,
-            color: Colors.grey.shade200,
-            child: const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            ),
+            height: _height,
+            color: AppColors.primaryTint,
+            child: const LoadingView(),
           );
         },
         errorBuilder: (context, error, stackTrace) {
           return Container(
-            height: 220,
-            color: Colors.grey.shade200,
-            child: const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.broken_image_outlined, color: Colors.grey, size: 40),
-                  SizedBox(height: 8),
-                  Text('Foto tidak dapat dimuat',
-                      style: TextStyle(color: AppColors.textSecondary)),
-                ],
-              ),
+            height: _height,
+            color: AppColors.primaryTint,
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.broken_image_outlined,
+                  color: AppColors.textMuted,
+                  size: 36,
+                ),
+                SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Foto tidak dapat dimuat',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ],
             ),
           );
         },
@@ -227,93 +376,45 @@ class _ConsultationPhoto extends StatelessWidget {
   }
 }
 
-class _DiagnosisItem extends StatelessWidget {
-  final String name;
-  const _DiagnosisItem({required this.name});
+class _SubmissionError extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  final VoidCallback onClose;
+
+  const _SubmissionError({
+    required this.message,
+    required this.onRetry,
+    required this.onClose,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final description = diagnosisDescriptions[name] ?? 'Penjelasan tidak tersedia.';
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Column(
+      children: [
+        Expanded(
+          child: StateView(
+            icon: Icons.cloud_off_rounded,
+            isError: true,
+            title: 'Jawaban belum terkirim',
+            message:
+                '$message\n\nJawaban Anda masih tersimpan di perangkat '
+                'ini. Coba kirim lagi.',
+          ),
+        ),
+        BottomActionBar(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.local_hospital, color: AppColors.primary),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                    fontSize: 16,
-                  ),
-                ),
+              AppButton(label: 'Kirim Ulang', onPressed: onRetry),
+              const SizedBox(height: AppSpacing.xs),
+              TextButton(
+                onPressed: onClose,
+                child: const Text('Batalkan dan Keluar'),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            description,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  final String message;
-  final VoidCallback? onRetry;
-  const _ErrorState({required this.message, this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Icon(Icons.error_outline, color: Colors.red, size: 48),
-          const SizedBox(height: 16),
-          Text('Gagal menyimpan hasil:\n$message', textAlign: TextAlign.center),
-          const SizedBox(height: 24),
-          if (onRetry != null) ...[
-            ElevatedButton(
-              onPressed: onRetry,
-              child: const Text('Coba Lagi'),
-            ),
-            const SizedBox(height: 12),
-          ],
-          OutlinedButton(
-            onPressed: () => Navigator.of(context)
-                .pushNamedAndRemoveUntil('/home', (route) => false),
-            child: const Text('Kembali ke Beranda'),
-          )
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

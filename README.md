@@ -1,4 +1,4 @@
-# Dentistapp
+# Dentist App
 
 Aplikasi mobile (Flutter) untuk pemeriksaan mandiri gangguan sendi rahang (TMD /
 *temporomandibular disorder*). Pasien menjawab kuesioner (SQ dan EQ), mengukur
@@ -66,13 +66,49 @@ gunakan HTTPS (mis. tunnel) untuk pengujian di iOS.
 
 - `lib/core` — klien Dio (`utils/dio_client.dart`), pemetaan error
   (`errors/exceptions.dart`), penyimpanan token aman (`storage/token_storage.dart`),
-  manajemen sesi (`session/session_manager.dart`), API provider, repository, model.
+  manajemen sesi (`session/session_manager.dart`), API provider, repository,
+  model bertipe (`models/`: `Consultation`, `Patient`, `QuestionModel`).
+- `lib/core/theme` — design system: `app_colors.dart` (palet), `app_theme.dart`
+  (tema Material 3, jarak, gaya tombol/input). `lib/core/widgets` berisi komponen
+  bersama (`AppCard`, `AppButton`, `InlineNotice`, `StateView`, `BottomActionBar`,
+  `AppLogo`). Layar baru sebaiknya memakai komponen ini, bukan warna/gaya sendiri.
 - `lib/features` — `authentication`, `diagnosis`, `history`, `home`, `profile`
   (provider + layar + widget).
 - Arsitektur: *Provider* (state UI) -> *Repository* -> *API provider* (Dio).
+- Navigasi: `/home` adalah `MainShell` dengan tiga tab (Beranda, Riwayat, Profil).
+  Rute didaftarkan di `DentistApp.onGenerateRoute` (`lib/main.dart`).
 - Sesi: token Bearer disimpan di `flutter_secure_storage`; saat aplikasi dibuka,
   layar splash memvalidasi token lewat `GET api/auth/me`. Respons 401 pada request
-  terautentikasi menghapus sesi dan mengarahkan pengguna ke layar login.
+  terautentikasi menghapus sesi dan mengarahkan pengguna ke layar masuk.
+
+## Alur pemeriksaan
+
+- Pertanyaan diambil dari `GET api/questions` dan ditampilkan sebagai satu urutan
+  langkah (SQ lalu EQ) dengan satu bilah kemajuan.
+- **Tidak ada jawaban yang terisi otomatis.** Nilai `input.default` dari server
+  tidak dipakai sebagai pilihan awal; setiap langkah wajib dijawab pengguna.
+- **Pertanyaan lanjutan dilewati bila tidak relevan**: SQ2-SQ4 hanya ditanyakan
+  bila SQ1 = "Ya", SQ6-SQ7 hanya bila SQ5 = "Ya" (`DiagnosisProvider.followUpOf`).
+  Pertanyaan yang dilewati tidak dikirim; server memakai nilai defaultnya sehingga
+  hasil diagnosis sama dengan menjawab "tidak". Kosongkan map tersebut bila semua
+  pertanyaan harus selalu ditanyakan.
+- Teks tampilan (judul tanpa "(Jawaban: ...)", label opsi, nama area, petunjuk)
+  diatur di `features/diagnosis/question_presenter.dart`. Nilai yang dikirim ke
+  server tidak diubah.
+- Nama diagnosis dari server diterjemahkan untuk tampilan di
+  `core/utils/diagnosis_info.dart`.
+
+## Alat bantu desain
+
+Di luar folder `test/`, jadi tidak ikut `flutter test` biasa:
+
+```bash
+# Merender layar utama dengan data palsu ke tool/screenshots/out/*.png
+flutter test tool/screenshots/render_screens_test.dart
+
+# Membuat ulang ikon aplikasi lalu memasangnya ke Android/iOS/web (macOS)
+flutter test tool/icons/render_icons_test.dart && tool/icons/install_icons.sh
+```
 
 ## Penandatanganan rilis Android
 

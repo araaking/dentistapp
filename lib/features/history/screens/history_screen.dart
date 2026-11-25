@@ -1,190 +1,84 @@
 import 'package:material_ui/material_ui.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/data/repositories/consultation_repository.dart';
-import '../../../core/errors/exceptions.dart';
-import '../../../core/utils/date_format.dart';
-import '../widgets/history_item.dart';
+import 'package:provider/provider.dart';
 
-class HistoryScreen extends StatefulWidget {
-  final ConsultationRepository consultationRepository;
+import '../../../core/models/consultation.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_widgets.dart';
+import '../provider/history_provider.dart';
+import '../widgets/consultation_tile.dart';
 
-  const HistoryScreen({super.key, required this.consultationRepository});
+/// Tab Riwayat: seluruh hasil pemeriksaan, terbaru di atas.
+class HistoryScreen extends StatelessWidget {
+  /// Dipanggil saat pengguna menekan "Mulai Pemeriksaan" di keadaan kosong.
+  final VoidCallback onStartDiagnosis;
 
-  @override
-  State<HistoryScreen> createState() => _HistoryScreenState();
-}
+  const HistoryScreen({super.key, required this.onStartDiagnosis});
 
-class _HistoryScreenState extends State<HistoryScreen> {
-  List<dynamic> _consultations = [];
-  bool _isLoading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadConsultations();
-  }
-
-  Future<void> _loadConsultations() async {
-    // "Coba Lagi" setelah error menampilkan spinner penuh; pull-to-refresh
-    // mempertahankan daftar yang ada.
-    if (_error != null) {
-      setState(() {
-        _error = null;
-        _isLoading = true;
-      });
-    }
-    try {
-      final consultations = await widget.consultationRepository.getConsultations();
-      if (!mounted) return;
-      setState(() {
-        _consultations = consultations;
-        _error = null;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = ApiException.messageOf(e);
-        _isLoading = false;
-      });
-    }
+  void _open(BuildContext context, Consultation consultation) {
+    Navigator.of(context)
+        .pushNamed('/diagnosis_result', arguments: consultation);
   }
 
   @override
   Widget build(BuildContext context) {
+    final history = context.watch<HistoryProvider>();
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Riwayat Diagnosis'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-      ),
-      body: _buildBody(),
+      appBar: AppBar(title: const Text('Riwayat')),
+      body: _buildBody(context, history),
     );
   }
 
-  Widget _buildBody() {
-    if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.primary),
-      );
-    }
+  Widget _buildBody(BuildContext context, HistoryProvider history) {
+    final items = history.items;
 
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, color: Colors.red, size: 48),
-              const SizedBox(height: 16),
-              Text(
-                'Gagal memuat riwayat:\n$_error',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _loadConsultations,
-                child: const Text('Coba Lagi'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_consultations.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.history_toggle_off, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text(
-              'Belum ada riwayat diagnosis',
-              style: TextStyle(
-                fontSize: 18,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Mulai diagnosis pertama Anda untuk melihat riwayat di sini',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-          ],
-        ),
+    if (items.isEmpty) {
+      if (history.error != null) {
+        return StateView.error(
+          title: 'Riwayat belum dapat dimuat',
+          message: history.error!,
+          onAction: history.load,
+        );
+      }
+      if (!history.hasLoaded) return const LoadingView();
+      return StateView(
+        icon: Icons.history_rounded,
+        title: 'Belum ada riwayat',
+        message: 'Hasil pemeriksaan Anda akan tersimpan di sini.',
+        actionLabel: 'Mulai Pemeriksaan',
+        onAction: onStartDiagnosis,
       );
     }
 
     return RefreshIndicator(
-      onRefresh: _loadConsultations,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _consultations.length,
+      onRefresh: history.load,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.page,
+          AppSpacing.sm,
+          AppSpacing.page,
+          AppSpacing.xl,
+        ),
+        itemCount: items.length + (history.error != null ? 1 : 0),
+        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
         itemBuilder: (context, index) {
-          final consultation = _consultations[index];
-          return HistoryItem(
+          if (history.error != null) {
+            if (index == 0) {
+              return InlineNotice(
+                message: 'Gagal memperbarui riwayat: ${history.error}',
+                tone: NoticeTone.warning,
+              );
+            }
+            index -= 1;
+          }
+          final consultation = items[index];
+          return ConsultationTile(
             consultation: consultation,
-            onTap: () {
-              // Navigate to detail view
-              _showConsultationDetail(consultation);
-            },
+            onTap: () => _open(context, consultation),
           );
         },
       ),
     );
-  }
-
-  void _showConsultationDetail(dynamic consultation) {
-    // Tangkap navigator milik layar ini SEBELUM dialog dibuka; `context` di
-    // dalam builder dialog adalah milik dialog dan sudah tidak aktif setelah pop.
-    final navigator = Navigator.of(context);
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Detail Diagnosis'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Tanggal: ${formatDateId(consultation['consultation_date'])}'),
-            const SizedBox(height: 8),
-            const Text('Diagnosis:'),
-            ..._extractDiagnoses(consultation).map((diagnosis) => Text('• $diagnosis')),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Tutup'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              navigator.pushNamed(
-                '/diagnosis_result',
-                arguments: consultation,
-              );
-            },
-            child: const Text('Lihat Lengkap'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<String> _extractDiagnoses(dynamic consultation) {
-    if (consultation['diagnoses'] is List) {
-      return (consultation['diagnoses'] as List).map((d) {
-        if (d is Map && d['name'] != null) return d['name'].toString();
-        return d.toString();
-      }).toList();
-    }
-    return [];
   }
 }

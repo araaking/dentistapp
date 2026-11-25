@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../storage/token_storage.dart';
+import '../theme/app_colors.dart';
 
 /// Mengelola siklus hidup sesi: menghapus token + seluruh state pengguna
 /// (profil, diagnosis, auth) saat logout / sesi berakhir, dan mengarahkan
@@ -40,14 +41,16 @@ class SessionManager {
     _expiring = true;
     try {
       await clear();
-      navigatorKey.currentState
-          ?.pushNamedAndRemoveUntil('/login', (route) => false);
+      navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        '/login',
+        (route) => false,
+      );
       messengerKey.currentState
         ?..hideCurrentSnackBar()
         ..showSnackBar(
           const SnackBar(
-            content: Text('Sesi Anda telah berakhir, silakan login kembali.'),
-            backgroundColor: Colors.red,
+            content: Text('Sesi Anda telah berakhir, silakan masuk kembali.'),
+            backgroundColor: AppColors.danger,
           ),
         );
     } finally {

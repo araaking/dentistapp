@@ -1,32 +1,65 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+
 import '../../../core/errors/exceptions.dart';
+import '../../../core/models/patient.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/date_format.dart';
+import '../../../core/widgets/app_widgets.dart';
 import '../../authentication/provider/auth_provider.dart';
 import '../provider/profile_provider.dart';
-import 'edit_profile_screen.dart';
 
-class ProfileScreen extends StatefulWidget {
+/// Tab Profil: data diri, edit profil, keluar, dan hapus akun.
+class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
-  @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
-}
+  void _openEdit(BuildContext context, Patient? patient) {
+    Navigator.of(context).pushNamed('/edit_profile', arguments: patient);
+  }
 
-class _ProfileScreenState extends State<ProfileScreen> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
-      profileProvider.loadPatientProfile();
-    });
+  /// Keluar hanya setelah konfirmasi, agar tidak terpicu tanpa sengaja.
+  Future<void> _confirmLogout(BuildContext context) async {
+    final authProvider = context.read<AuthProvider>();
+    final navigator = Navigator.of(context);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Keluar dari akun?'),
+        content: const Text(
+          'Anda perlu masuk kembali untuk melihat riwayat atau melakukan '
+          'pemeriksaan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(minimumSize: const Size(96, 44)),
+            child: const Text('Keluar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    // Tampilkan indikator selagi token dicabut di server.
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(canPop: false, child: LoadingView()),
+    );
+    // Menghapus token + seluruh state pengguna (profil, riwayat, jawaban).
+    await authProvider.logout();
+    navigator.pushNamedAndRemoveUntil('/login', (route) => false);
   }
 
   /// Alur hapus akun: dialog konfirmasi + password -> DELETE api/account ->
   /// bersihkan sesi -> kembali ke login.
-  Future<void> _confirmDeleteAccount() async {
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
     final authProvider = context.read<AuthProvider>();
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
@@ -34,322 +67,289 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final deleted = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => _DeleteAccountDialog(authProvider: authProvider),
+      builder: (dialogContext) =>
+          _DeleteAccountDialog(authProvider: authProvider),
     );
-
-    if (deleted != true || !mounted) return;
+    if (deleted != true) return;
 
     navigator.pushNamedAndRemoveUntil('/login', (route) => false);
     messenger.showSnackBar(
-      const SnackBar(
-        content: Text('Akun Anda telah dihapus secara permanen.'),
-      ),
+      const SnackBar(content: Text('Akun Anda telah dihapus secara permanen.')),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final profile = context.watch<ProfileProvider>();
+    final patient = profile.patient;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profil Saya'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          PopupMenuButton<String>(
-            tooltip: 'Menu',
-            onSelected: (value) {
-              if (value == 'delete') _confirmDeleteAccount();
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem<String>(
-                value: 'delete',
-                child: Text('Hapus Akun'),
+      appBar: AppBar(title: const Text('Profil')),
+      body: RefreshIndicator(
+        onRefresh: profile.loadPatientProfile,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.sm,
+            AppSpacing.page,
+            AppSpacing.xxl,
+          ),
+          children: [
+            ..._profileSection(context, profile, patient),
+            const SizedBox(height: AppSpacing.xl + 4),
+            Text('Akun', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: AppSpacing.md),
+            AppCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  _ActionTile(
+                    icon: Icons.logout_rounded,
+                    label: 'Keluar',
+                    onTap: () => _confirmLogout(context),
+                  ),
+                  const Divider(indent: 60),
+                  _ActionTile(
+                    icon: Icons.delete_outline_rounded,
+                    label: 'Hapus akun',
+                    color: AppColors.danger,
+                    onTap: () => _confirmDeleteAccount(context),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            Text(
+              'Dentist App',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: AppColors.textMuted),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _profileSection(
+    BuildContext context,
+    ProfileProvider profile,
+    Patient? patient,
+  ) {
+    final theme = Theme.of(context);
+    final email = context.watch<AuthProvider>().email;
+
+    if (patient == null) {
+      if (profile.error != null) {
+        return [
+          InlineNotice(
+            message: 'Profil belum dapat dimuat: ${profile.error}',
+            tone: NoticeTone.danger,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          OutlinedButton(
+            onPressed: profile.loadPatientProfile,
+            child: const Text('Coba Lagi'),
+          ),
+        ];
+      }
+      if (!profile.hasLoaded) {
+        return const [
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 56),
+            child: LoadingView(label: 'Memuat profil…'),
+          ),
+        ];
+      }
+      return [
+        AppCard(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            children: [
+              const IconBadge(icon: Icons.person_add_alt_1_outlined, size: 60),
+              const SizedBox(height: AppSpacing.lg),
+              Text('Lengkapi profil Anda', style: theme.textTheme.titleLarge),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Profil diperlukan agar hasil pemeriksaan dapat disimpan.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              AppButton(
+                label: 'Buat Profil',
+                onPressed: () => _openEdit(context, null),
               ),
             ],
           ),
+        ),
+      ];
+    }
+
+    return [
+      Row(
+        children: [
+          CircleAvatar(
+            radius: 34,
+            backgroundColor: AppColors.primarySoft,
+            child: Text(
+              patient.initials,
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primaryDark,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.lg),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  patient.name.isEmpty ? 'Tanpa nama' : patient.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.headlineSmall,
+                ),
+                if (email != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
-      body: Consumer<ProfileProvider>(
-        builder: (context, profileProvider, child) {
-          if (profileProvider.isLoading) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: AppColors.primary),
-                  SizedBox(height: 16),
-                  Text('Memuat profil...', style: TextStyle(color: AppColors.textSecondary)),
-                ],
-              ),
-            );
-          }
+      const SizedBox(height: AppSpacing.xl),
+      AppCard(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+        child: Column(
+          children: [
+            _InfoRow(
+              icon: Icons.cake_outlined,
+              label: 'Tanggal lahir',
+              value: formatCalendarDateId(patient.dateOfBirth),
+            ),
+            const Divider(indent: 60),
+            _InfoRow(
+              icon: Icons.wc_rounded,
+              label: 'Jenis kelamin',
+              value: patient.genderLabel,
+            ),
+            const Divider(indent: 60),
+            _InfoRow(
+              icon: Icons.phone_outlined,
+              label: 'Nomor telepon',
+              value: patient.phoneNumber ?? '-',
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: AppSpacing.md),
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () => _openEdit(context, patient),
+          icon: const Icon(Icons.edit_outlined, size: 20),
+          label: const Text('Edit Profil'),
+        ),
+      ),
+    ];
+  }
+}
 
-          if (profileProvider.error != null) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline, color: Colors.red, size: 64),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Terjadi kesalahan',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      profileProvider.error!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppColors.textSecondary),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: () => profileProvider.loadPatientProfile(),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                      ),
-                      child: const Text('Coba Lagi'),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
 
-          final patientData = profileProvider.patientData;
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
-          if (patientData == null) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.person_add, size: 80, color: AppColors.primary.withValues(alpha: 0.6)),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Profil Belum Dibuat',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Silakan lengkapi profil Anda terlebih dahulu untuk pengalaman yang lebih baik',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
-                    ),
-                    const SizedBox(height: 32),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).pushNamed('/edit_profile');
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text('Buat Profil Sekarang'),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 22, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.lg + 2),
+          Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header dengan avatar
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.8)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.3),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      const CircleAvatar(
-                        radius: 40,
-                        backgroundColor: Colors.white,
-                        child: Icon(
-                          Icons.person,
-                          size: 40,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        patientData['name']?.toString() ?? 'User',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Profil Pasien',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Informasi Profil Card
-                Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '📋 Informasi Profil',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        _buildInfoItem('👤 Nama Lengkap', patientData['name']?.toString() ?? '-'),
-                        _buildInfoItem('🎂 Tanggal Lahir', _formatDate(patientData['date_of_birth']?.toString())),
-                        _buildInfoItem('⚤ Jenis Kelamin', _formatGender(patientData['gender']?.toString())),
-                        _buildInfoItem('📞 Nomor Telepon', patientData['phone_number']?.toString() ?? '-'),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Edit Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => EditProfileScreen(initialData: patientData),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      '✏️ Edit Profil',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Hapus Akun (wajib untuk App Store / Google Play)
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: _confirmDeleteAccount,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'Hapus Akun',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
+                Text(label, style: theme.textTheme.bodySmall),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildInfoItem(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
-              fontSize: 14,
-            ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const Divider(height: 24, color: Color(0xFFE5E5E5)),
         ],
       ),
     );
   }
+}
 
-  String _formatDate(String? date) {
-    if (date == null || date == '-') return '-';
-    final parts = date.split('-');
-    if (parts.length == 3) {
-      return '${parts[2]}/${parts[1]}/${parts[0]}';
-    }
-    return date;
-  }
+class _ActionTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color color;
 
-  String _formatGender(String? gender) {
-    if (gender == 'Male') return 'Laki-laki';
-    if (gender == 'Female') return 'Perempuan';
-    return gender ?? '-';
+  const _ActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.color = AppColors.textPrimary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.lg,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 22, color: color),
+            const SizedBox(width: AppSpacing.lg + 2),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: color,
+                ),
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -357,6 +357,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 /// Menutup dengan `true` bila akun berhasil dihapus.
 class _DeleteAccountDialog extends StatefulWidget {
   final AuthProvider authProvider;
+
   const _DeleteAccountDialog({required this.authProvider});
 
   @override
@@ -366,6 +367,7 @@ class _DeleteAccountDialog extends StatefulWidget {
 class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
   final _passwordController = TextEditingController();
   bool _submitting = false;
+  bool _obscure = true;
   String? _error;
 
   @override
@@ -409,54 +411,73 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Hapus Akun Permanen?'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Akun Anda beserta profil, seluruh riwayat diagnosis, jawaban, foto, '
-              'dan sesi login akan dihapus secara permanen. Tindakan ini tidak '
-              'dapat dibatalkan.',
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _passwordController,
-              obscureText: true,
-              enabled: !_submitting,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                prefixIcon: const Icon(Icons.lock_outline),
-                errorText: _error,
-                errorMaxLines: 3,
+    return PopScope(
+      canPop: !_submitting,
+      child: AlertDialog(
+        title: const Text('Hapus akun permanen?'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Akun, profil, seluruh riwayat pemeriksaan, jawaban, dan foto '
+                'Anda akan dihapus permanen. Tindakan ini tidak dapat '
+                'dibatalkan.',
               ),
-              onSubmitted: (_) => _submit(),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _submitting ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Batal'),
-        ),
-        ElevatedButton(
-          onPressed: _submitting ? null : _submit,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
+              const SizedBox(height: AppSpacing.lg),
+              TextField(
+                controller: _passwordController,
+                obscureText: _obscure,
+                enabled: !_submitting,
+                autofillHints: const [AutofillHints.password],
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  prefixIcon: const Icon(Icons.lock_outline_rounded),
+                  suffixIcon: IconButton(
+                    tooltip: _obscure
+                        ? 'Tampilkan password'
+                        : 'Sembunyikan password',
+                    icon: Icon(
+                      _obscure
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                    onPressed: () => setState(() => _obscure = !_obscure),
+                  ),
+                  errorText: _error,
+                ),
+                onSubmitted: (_) => _submit(),
+              ),
+            ],
           ),
-          child: _submitting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Text('Hapus Akun'),
         ),
-      ],
+        actions: [
+          TextButton(
+            onPressed: _submitting
+                ? null
+                : () => Navigator.of(context).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: _submitting ? null : _submit,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              minimumSize: const Size(120, 44),
+            ),
+            child: _submitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text('Hapus Akun'),
+          ),
+        ],
+      ),
     );
   }
 }

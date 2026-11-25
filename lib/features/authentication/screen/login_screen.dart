@@ -1,7 +1,13 @@
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_logo.dart';
+import '../../../core/widgets/app_widgets.dart';
 import '../provider/auth_provider.dart';
+import '../widgets/auth_fields.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,9 +29,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final authProvider = context.read<AuthProvider>();
+    final navigator = Navigator.of(context);
     await authProvider.login(
       _emailController.text.trim(),
       _passwordController.text,
@@ -33,104 +41,100 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (authProvider.state == AuthState.authenticated) {
-      // Navigasi ke halaman home setelah login berhasil
-      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
-    } else if (authProvider.state == AuthState.error) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Login Gagal: ${authProvider.errorMessage}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      TextInput.finishAutofillContext();
+      navigator.pushNamedAndRemoveUntil('/home', (route) => false);
     }
+    // Kegagalan ditampilkan sebaris di atas tombol (lihat build).
+  }
+
+  void _openRegister() {
+    context.read<AuthProvider>().clearError();
+    Navigator.of(context).pushNamed('/register');
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Icon(Icons.health_and_safety_outlined, size: 80, color: AppColors.primary),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Selamat Datang',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Login untuk melanjutkan ke aplikasi diagnosis',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 40),
+    final auth = context.watch<AuthProvider>();
+    final theme = Theme.of(context);
+    final loading = auth.state == AuthState.loading;
 
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: Icon(Icons.email_outlined),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty || !value.contains('@')) {
-                        return 'Masukkan email yang valid.';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon: Icon(Icons.lock_outline),
-                    ),
-                     validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Masukkan password Anda.';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 24),
-
-                  Consumer<AuthProvider>(
-                    builder: (context, auth, child) {
-                      if (auth.state == AuthState.loading) {
-                        return const Center(child: CircularProgressIndicator(color: AppColors.primary));
-                      }
-                      return ElevatedButton(
-                        onPressed: _handleLogin,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: AppTheme.overlayStyle,
+      child: Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xl,
+                vertical: AppSpacing.xl,
+              ),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: AutofillGroup(
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: AppLogo(size: 64),
+                      ),
+                      const SizedBox(height: AppSpacing.xl),
+                      Text(
+                        'Masuk ke Dentist App',
+                        style: theme.textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: AppSpacing.xs + 2),
+                      Text(
+                        'Periksa kesehatan sendi rahang Anda secara mandiri.',
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: AppColors.textSecondary,
                         ),
-                        child: const Text('LOGIN'),
-                      );
-                    },
+                      ),
+                      const SizedBox(height: AppSpacing.xxl),
+                      EmailField(
+                        controller: _emailController,
+                        enabled: !loading,
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      PasswordField(
+                        controller: _passwordController,
+                        enabled: !loading,
+                        validator: (value) => (value == null || value.isEmpty)
+                            ? 'Masukkan password Anda.'
+                            : null,
+                        onSubmitted: (_) => _handleLogin(),
+                      ),
+                      if (auth.state == AuthState.error) ...[
+                        const SizedBox(height: AppSpacing.lg),
+                        InlineNotice(
+                          message: auth.errorMessage,
+                          tone: NoticeTone.danger,
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.xl),
+                      AppButton(
+                        label: 'Masuk',
+                        loading: loading,
+                        onPressed: _handleLogin,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Belum punya akun?',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                          TextButton(
+                            onPressed: loading ? null : _openRegister,
+                            child: const Text('Daftar'),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pushNamed('/register');
-                    },
-                    child: const Text('Belum punya akun? Daftar di sini'),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

@@ -159,7 +159,7 @@ class NotFoundException extends ApiException {
 /// Dilempar saat pengguna tidak terautentikasi (401).
 class UnauthorizedException extends ApiException {
   UnauthorizedException({
-    super.message = 'Sesi Anda telah berakhir, silakan login kembali.',
+    super.message = 'Sesi Anda telah berakhir, silakan masuk kembali.',
   }) : super(statusCode: 401);
 }
 

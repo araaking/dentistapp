@@ -1,8 +1,10 @@
 import 'package:dio/dio.dart';
+
+import '../../errors/exceptions.dart';
+import '../../models/consultation.dart';
+import '../../utils/json_utils.dart';
 import '../consultation_payload.dart';
 import '../provider/consultation_api_provider.dart';
-import '../../errors/exceptions.dart';
-import '../../utils/json_utils.dart';
 
 class ConsultationRepository {
   final ConsultationApiProvider _consultationApiProvider;
@@ -10,35 +12,20 @@ class ConsultationRepository {
   ConsultationRepository(this._consultationApiProvider);
 
   /// Mengambil riwayat konsultasi (terbaru dulu).
-  Future<List<dynamic>> getConsultationHistory() async {
+  Future<List<Consultation>> getConsultationHistory() async {
     try {
       final response = await _consultationApiProvider.getConsultationHistory();
       final list = asJsonMap(response.data)['consultations'];
-      return list is List ? list : <dynamic>[];
+      if (list is! List) return const [];
+      return list.whereType<Map>().map(Consultation.fromJson).toList();
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
   }
 
-  /// Alias untuk getConsultationHistory (untuk kompatibilitas dengan HistoryScreen)
-  Future<List<dynamic>> getConsultations() {
-    return getConsultationHistory();
-  }
-
-  /// Mengambil detail satu konsultasi.
-  Future<Map<String, dynamic>> getConsultationDetail(int consultationId) async {
-    try {
-      final response =
-          await _consultationApiProvider.getConsultationDetail(consultationId);
-      return asJsonMap(asJsonMap(response.data)['consultation']);
-    } on DioException catch (e) {
-      throw ApiException.fromDioException(e);
-    }
-  }
-
-  /// Mengirim konsultasi (satu request multipart, foto sebagai `e2_photo_file`).
-  Future<Map<String, dynamic>> submitConsultation(
-      ConsultationPayload payload) async {
+  /// Mengirim konsultasi (satu request multipart, foto sebagai `e2_photo_file`)
+  /// dan mengembalikan hasilnya.
+  Future<Consultation> submitConsultation(ConsultationPayload payload) async {
     try {
       final fields = payload.toFormFields();
 
@@ -51,9 +38,14 @@ class ConsultationRepository {
         );
       }
 
-      final response = await _consultationApiProvider
-          .submitConsultation(FormData.fromMap(fields));
-      return asJsonMap(response.data);
+      final response = await _consultationApiProvider.submitConsultation(
+        FormData.fromMap(fields),
+      );
+      final result = Consultation.fromJson(asJsonMap(response.data));
+      // Respons POST tidak memuat tanggal; konsultasi baru saja dibuat.
+      return result.date == null
+          ? result.copyWith(date: DateTime.now())
+          : result;
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
