@@ -48,7 +48,9 @@ class Consultation {
     );
   }
 
-  /// Diagnosis utama (aturan server menghasilkan paling banyak satu).
+  /// Diagnosis pertama dalam urutan dari server (untuk ringkasan satu baris).
+  /// Satu konsultasi dapat memiliki beberapa diagnosis; daftar lengkapnya ada
+  /// di [diagnoses].
   String? get primaryDiagnosis => diagnoses.isEmpty ? null : diagnoses.first;
 
   Consultation copyWith({DateTime? date}) {

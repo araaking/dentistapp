@@ -44,12 +44,47 @@ class DiagnosisInfo {
           'Jawaban Anda mengarah ke sakit kepala di pelipis yang berkaitan '
           'dengan gangguan sendi rahang dan otot pengunyah.',
     ),
+    // Nama lama: tidak lagi dihasilkan server, dipertahankan agar konsultasi
+    // lama di riwayat tetap tampil dengan penjelasan.
     'Joint-related TMD': DiagnosisInfo(
       title: 'Gangguan sendi rahang',
       medicalTerm: 'Joint-related TMD',
       description:
           'Jawaban Anda mengarah ke gangguan pada struktur sendi rahang, '
           'misalnya bunyi sendi, rahang terkunci, atau bukaan mulut terbatas.',
+    ),
+    'Degenerative joint disease': DiagnosisInfo(
+      title: 'Perubahan degeneratif sendi rahang',
+      medicalTerm: 'Degenerative joint disease',
+      description:
+          'Jawaban Anda mengarah ke perubahan degeneratif pada sendi rahang, '
+          'ditandai bunyi kasar seperti pasir (krepitasi) saat rahang '
+          'digerakkan; dapat disertai keterbatasan gerak.',
+    ),
+    'Acute closed lock': DiagnosisInfo(
+      title: 'Rahang terkunci tertutup',
+      medicalTerm: 'Acute closed lock',
+      description:
+          'Jawaban Anda mengarah ke bantalan sendi (diskus) yang bergeser dan '
+          'tidak kembali ke posisinya, sehingga mulut tidak dapat dibuka lebar '
+          '(kurang dari 35 mm).',
+    ),
+    'Other Disc-based TMD': DiagnosisInfo(
+      title: 'Gangguan bantalan sendi rahang',
+      medicalTerm: 'Other Disc-based TMD',
+      description:
+          'Jawaban Anda mengarah ke gangguan pada bantalan sendi (diskus) '
+          'rahang, umumnya ditandai bunyi klik saat membuka/menutup mulut atau '
+          'riwayat rahang terkunci; dapat disertai keterbatasan gerak.',
+    ),
+    'Subluxation': DiagnosisInfo(
+      title: 'Rahang terkunci terbuka',
+      medicalTerm: 'Subluxation',
+      description:
+          'Jawaban Anda mengarah ke rahang yang pernah terkunci dalam posisi '
+          'terbuka lebar dan perlu digeser agar bisa menutup kembali; bila '
+          'terkunci terbuka lebih dari beberapa detik disebut luksasi '
+          '(dislokasi).',
     ),
     noneName: DiagnosisInfo(
       title: 'Tidak ditemukan tanda TMD spesifik',

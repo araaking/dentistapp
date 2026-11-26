@@ -90,6 +90,29 @@ void main() {
       );
     });
 
+    test('beberapa diagnosis dipertahankan urutannya di kedua bentuk', () {
+      final fromStrings = Consultation.fromJson({
+        'consultation_id': 1,
+        'diagnoses': ['Myalgia', 'Arthralgia', 'Subluxation'],
+      });
+      expect(fromStrings.diagnoses, ['Myalgia', 'Arthralgia', 'Subluxation']);
+      expect(fromStrings.primaryDiagnosis, 'Myalgia');
+
+      final fromObjects = Consultation.fromJson({
+        'id': 2,
+        'diagnoses': [
+          {'id': 1, 'name': 'Degenerative joint disease'},
+          {'id': 2, 'name': 'Other Disc-based TMD'},
+          {'id': 3, 'name': 'Acute closed lock'},
+        ],
+      });
+      expect(fromObjects.diagnoses, [
+        'Degenerative joint disease',
+        'Other Disc-based TMD',
+        'Acute closed lock',
+      ]);
+    });
+
     test('bentuk hasil kirim (diagnoses berupa string) dan data rusak', () {
       final c = Consultation.fromJson({
         'consultation_id': '7',
@@ -116,6 +139,36 @@ void main() {
         DiagnosisTone.clear,
       );
       expect(DiagnosisInfo.of(null).tone, DiagnosisTone.clear);
+    });
+
+    test('semua nama yang bisa dikirim server punya penjelasan', () {
+      const names = [
+        'Myalgia',
+        'Arthralgia',
+        'Headache attributed to TMD (HA-TMD)',
+        'Degenerative joint disease',
+        'Acute closed lock',
+        'Other Disc-based TMD',
+        'Subluxation',
+        'Joint-related TMD', // nama lama, masih ada di riwayat
+        DiagnosisInfo.noneName,
+      ];
+      for (final name in names) {
+        final info = DiagnosisInfo.of(name);
+        expect(
+          info.description,
+          isNot('Penjelasan untuk hasil ini belum tersedia.'),
+          reason: name,
+        );
+        expect(info.title, isNot(name), reason: name);
+        expect(
+          info.tone,
+          name == DiagnosisInfo.noneName
+              ? DiagnosisTone.clear
+              : DiagnosisTone.attention,
+          reason: name,
+        );
+      }
     });
 
     test('nama yang tidak dikenal ditampilkan apa adanya', () {

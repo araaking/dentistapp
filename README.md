@@ -95,8 +95,9 @@ gunakan HTTPS (mis. tunnel) untuk pengujian di iOS.
 - Teks tampilan (judul tanpa "(Jawaban: ...)", label opsi, nama area, petunjuk)
   diatur di `features/diagnosis/question_presenter.dart`. Nilai yang dikirim ke
   server tidak diubah.
-- Nama diagnosis dari server diterjemahkan untuk tampilan di
-  `core/utils/diagnosis_info.dart`.
+- Satu pemeriksaan dapat menghasilkan beberapa diagnosis (urutan dari server
+  dipertahankan). Nama diagnosis dari server diterjemahkan untuk tampilan di
+  `core/utils/diagnosis_info.dart`; nama yang tidak dikenal ditampilkan apa adanya.
 
 ## Alat bantu desain
 
