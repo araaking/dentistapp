@@ -50,9 +50,14 @@ void main() {
         '1x/minggu atau lebih',
       );
       expect(QuestionPresenter.optionLabel('SQ1', 'Ya'), 'Ya');
+      // SQ3: opsi dari server sudah deskriptif, ditampilkan apa adanya.
       expect(
-        QuestionPresenter.optionLabel('SQ3', 'Ya'),
-        'Ya, menetap atau kambuh-kambuhan',
+        QuestionPresenter.optionLabel('SQ3', 'Persisten (terus-menerus)'),
+        'Persisten (terus-menerus)',
+      );
+      expect(
+        QuestionPresenter.optionLabel('SQ3', 'Kambuhan (hilang timbul)'),
+        'Kambuhan (hilang timbul)',
       );
     });
 

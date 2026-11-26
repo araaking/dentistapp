@@ -134,7 +134,11 @@ Map<String, dynamic> _questions() {
         'Berapa lama nyeri di rahang/pelipis/telinga berlangsung? (Jawaban: < 1 minggu atau >= 1 minggu)',
         ['< 1 minggu', '>= 1 minggu'],
       ),
-      q('SQ3', 'Bagaimana sifat nyeri? Apakah persisten atau kambuhan?'),
+      q('SQ3', 'Bagaimana sifat nyeri? Apakah persisten atau kambuhan?', [
+        'Persisten (terus-menerus)',
+        'Kambuhan (hilang timbul)',
+        'Tidak',
+      ]),
       q(
         'SQ4',
         'Apakah aktivitas (mengunyah makanan keras, membuka mulut lebar, kebiasaan rahang, aktivitas rahang lain) memengaruhi rasa sakit?',
@@ -395,7 +399,7 @@ void main() {
     await tapText(tester, '1 minggu atau lebih');
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
-    await tapText(tester, 'Ya, menetap atau kambuh-kambuhan');
+    await tapText(tester, 'Persisten (terus-menerus)');
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
     await shot(tester, '13_sq4_long');

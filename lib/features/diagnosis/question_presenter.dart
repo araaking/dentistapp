@@ -9,7 +9,6 @@ class QuestionPresenter {
 
   /// Label opsi khusus per pertanyaan (cermin `WEB_OPTION_LABELS` di backend).
   static const Map<String, Map<String, String>> _optionLabels = {
-    'SQ3': {'Ya': 'Ya, menetap atau kambuh-kambuhan'},
     'SQ6': {'Tidak': 'Tidak tentu'},
   };
 
